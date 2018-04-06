@@ -4,8 +4,7 @@ use strict;
 use LWP::UserAgent;
 use HTTP::Request::Common;
 
-for( my $window_size = 1; $window_size <= 3; $window_size = $window_size + 1 ) {
-
+for( my $window_size = 1; $window_size <= 1424; $window_size = $window_size + 50 ) {
     my $receiver_pid = fork;
 
     if ( $receiver_pid < 0 ) {
