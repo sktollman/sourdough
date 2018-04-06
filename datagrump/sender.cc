@@ -31,7 +31,7 @@ private:
 
 public:
   DatagrumpSender( const char * const host, const char * const port,
-		   const bool debug );
+		   const uint window_size, const bool debug );
   int loop();
 };
 
@@ -43,9 +43,9 @@ int main( int argc, char *argv[] )
   }
 
   bool debug = false;
-  if ( argc == 4 and string( argv[ 3 ] ) == "debug" ) {
+  if ( argc == 5 and string( argv[ 4 ] ) == "debug" ) {
     debug = true;
-  } else if ( argc == 3 ) {
+  } else if ( argc == 4 || argc == 3 ) {
     /* do nothing */
   } else {
     cerr << "Usage: " << argv[ 0 ] << " HOST PORT [debug]" << endl;
@@ -54,15 +54,16 @@ int main( int argc, char *argv[] )
 
   /* create sender object to handle the accounting */
   /* all the interesting work is done by the Controller */
-  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], debug );
+  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], atoi(argv[ 3 ]), debug );
   return sender.loop();
 }
 
 DatagrumpSender::DatagrumpSender( const char * const host,
 				  const char * const port,
+          const uint window_size,
 				  const bool debug )
   : socket_(),
-    controller_( debug ),
+    controller_( window_size, debug ),
     sequence_number_( 0 ),
     next_ack_expected_( 0 )
 {
@@ -72,7 +73,7 @@ DatagrumpSender::DatagrumpSender( const char * const host,
   /* connect socket to the remote host */
   /* (note: this doesn't send anything; it just tags the socket
      locally with the remote address */
-  socket_.connect( Address( host, port ) );  
+  socket_.connect( Address( host, port ) );
 
   cerr << "Sending to " << socket_.peer_address().to_string() << endl;
 }

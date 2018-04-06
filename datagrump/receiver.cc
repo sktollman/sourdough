@@ -29,7 +29,7 @@ int main( int argc, char *argv[] )
   /* "bind" the socket to the user-specified local port number */
   socket.bind( Address( "::0", argv[ 1 ] ) );
 
-  cerr << "Listening on " << socket.local_address().to_string() << endl;
+  // cerr << "Listening on " << socket.local_address().to_string() << endl;
 
   uint64_t sequence_number = 0;
 
