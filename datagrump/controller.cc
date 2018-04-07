@@ -6,14 +6,13 @@
 using namespace std;
 
 /* Default constructor */
-Controller::Controller( const uint window_size, const bool debug )
-  : debug_( debug ), window_size_( window_size )
+Controller::Controller( const uint window_size, const bool debug, Controller::Mode mode )
+  : debug_( debug ), window_size_( window_size ), mode_ ( mode )
 {}
 
 /* Get current window size, in datagrams */
 unsigned int Controller::window_size()
 {
-  /* Default: fixed window size of 100 outstanding datagrams */
   unsigned int the_window_size = window_size_;
 
   if ( debug_ ) {

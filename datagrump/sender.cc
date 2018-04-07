@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string.h>
 
 #include "socket.hh"
 #include "contest_message.hh"
@@ -31,9 +32,20 @@ private:
 
 public:
   DatagrumpSender( const char * const host, const char * const port,
-		   const uint window_size, const bool debug );
+		   const uint window_size, const bool debug, Controller::Mode mode );
   int loop();
 };
+
+Controller::Mode translate_mode ( const char * mode) {
+  if (strcmp(mode, "vanilla") == 0) {
+    return Controller::Mode::Vanilla;
+  } else if (strcmp(mode,"simpleaimd") == 0) {
+    return Controller::Mode::SimpleAIMD;
+  }
+
+  throw runtime_error ( "invalid mode specified: try vanilla or simpleaimd" );
+}
+
 
 int main( int argc, char *argv[] )
 {
@@ -43,27 +55,29 @@ int main( int argc, char *argv[] )
   }
 
   bool debug = false;
-  if ( argc == 5 and string( argv[ 4 ] ) == "debug" ) {
+  if ( argc == 6 and string( argv[ 5 ] ) == "debug" ) {
     debug = true;
-  } else if ( argc == 4 || argc == 3 ) {
+  } else if ( argc == 5 || argc == 4 ) {
     /* do nothing */
   } else {
-    cerr << "Usage: " << argv[ 0 ] << " HOST PORT [debug]" << endl;
+    cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window-size] [mode] [debug]" << endl;
     return EXIT_FAILURE;
   }
 
   /* create sender object to handle the accounting */
   /* all the interesting work is done by the Controller */
-  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], atoi(argv[ 3 ]), debug );
+  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], atoi(argv[ 3 ]), debug,  
+      translate_mode( argv[ 4 ] ));
   return sender.loop();
 }
 
 DatagrumpSender::DatagrumpSender( const char * const host,
 				  const char * const port,
           const uint window_size,
-				  const bool debug )
+				  const bool debug,
+          Controller::Mode mode )
   : socket_(),
-    controller_( window_size, debug ),
+    controller_( window_size, debug, mode ),
     sequence_number_( 0 ),
     next_ack_expected_( 0 )
 {
