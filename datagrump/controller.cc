@@ -6,21 +6,28 @@
 using namespace std;
 
 /* Default constructor */
-Controller::Controller( const uint window_size, const bool debug, Controller::Mode mode )
-  : debug_( debug ), window_size_( window_size ), mode_ ( mode )
+Controller::Controller( const uint window_size, const bool debug, ContestConfig config)
+  : debug_( debug ), window_size_( window_size ), config_ ( config )
 {}
 
 /* Get current window size, in datagrams */
 unsigned int Controller::window_size()
 {
-  unsigned int the_window_size = window_size_;
+  static unsigned int prev_timestamp = 0;
+  unsigned int time = timestamp_ms();
 
   if ( debug_ ) {
-    cerr << "At time " << timestamp_ms()
-	 << " window size is " << the_window_size << endl;
+    cerr << "At time " << time
+	 << " window size is " << window_size_ << endl;
   }
 
-  return the_window_size;
+  if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
+    if ( time - prev_timestamp >= config_.rtt_estimate ) {
+      prev_timestamp = time;
+      window_size_ = window_size_ + config_.additive_win_growth;
+    }
+  }
+  return window_size_;
 }
 
 /* A datagram was sent */
@@ -31,7 +38,16 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const bool after_timeout
 				    /* datagram was sent because of a timeout */ )
 {
-  /* Default: take no action */
+  if ( config_.mode == ContestConfig::Mode::Vanilla ) {
+    /* Default: take no action */
+  } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
+    if ( after_timeout ) {
+      window_size_ = (int) window_size_ * config_.multiplicative_win_decrease;
+      if ( debug_ ) {
+        cerr << "Halfed window size after timeout\n" << endl;
+      }
+    }
+  }
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
@@ -49,7 +65,33 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
-  /* Default: take no action */
+  static uint64_t last_seq_acked = 0;
+  static int duplicate_acks = 0;
+
+  if ( config_.mode == ContestConfig::Mode::Vanilla ) {
+    /* Default: take no action */
+  } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
+
+    /* Update duplicate acks */
+    if ( sequence_number_acked >= last_seq_acked ) {
+      last_seq_acked = sequence_number_acked;
+    } else {
+      duplicate_acks++;
+      if ( duplicate_acks == 3 ) {
+        window_size_ = (int) window_size_ * config_.multiplicative_win_decrease;
+        duplicate_acks = 0;
+        cerr << "Halfwindow size after duplicate acks\n" << endl;
+      }
+    }
+
+    /* Update RTT estimate */
+    uint64_t round_trip_sample = timestamp_ack_received - send_timestamp_acked;
+    config_.rtt_estimate = (int) (config_.rtt_estimate_weight * config_.rtt_estimate + 
+     (1 - config_.rtt_estimate_weight) * round_trip_sample);
+    if ( debug_ ) {
+      cerr << " --> RTT estimate: " << config_.rtt_estimate << endl;
+    }
+  }
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ack_received

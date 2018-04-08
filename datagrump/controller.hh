@@ -2,6 +2,7 @@
 #define CONTROLLER_HH
 
 #include <cstdint>
+#include "contest_config.hh"
 
 /* Congestion controller interface */
 
@@ -13,17 +14,8 @@ public:
   /* You can change these if you prefer, but will need to change
      the call site as well (in sender.cc) */
 
-  /* What controller mode to run */
-  enum Mode: unsigned char
-  {
-    Vanilla = 0, /* Starter code + choose fixed window size */
-    SimpleAIMD = 1 /* For Part B */
-    /* Add more here ... */
-
-  };
-
   /* Default constructor */
-  Controller( const uint window_size, const bool debug, Mode mode );
+  Controller( const uint window_size, const bool debug, ContestConfig config );
 
   /* Get current window size, in datagrams */
   unsigned int window_size();
@@ -46,9 +38,7 @@ public:
 private:
   bool debug_; /* Enables debugging output */
   uint window_size_; /* fixed window size */
-  Mode mode_; /* What congestion control mode to run */
-
-
+  ContestConfig config_; /* Run configuration */
 };
 
 #endif
