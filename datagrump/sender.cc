@@ -33,7 +33,7 @@ private:
 
 public:
   DatagrumpSender( const char * const host, const char * const port,
-		   const uint window_size, const bool debug, ContestConfig config );
+		   const bool debug, ContestConfig config );
   int loop();
 };
 
@@ -61,30 +61,29 @@ int main( int argc, char *argv[] )
   } else if ( argc == 5 || argc == 4 ) {
     /* do nothing */
   } else {
-    cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window-size] [mode] [debug]" << endl;
+    cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window] [mode] [debug]" << endl;
     return EXIT_FAILURE;
   }
  
   /* Set configuration */ 
   ContestConfig config;
-  config.start_window_size = 50; // Not actually enforced yet
-  config.additive_win_growth = 5;
+  config.window_size = atoi(argv[ 3 ]);
+  config.additive_win_growth = 1;
   config.multiplicative_win_decrease = 0.5;
   config.mode = translate_mode( argv[ 4 ]);
 
   /* create sender object to handle the accounting */
   /* all the interesting work is done by the Controller */
-  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], atoi(argv[ 3 ]), debug, config);
+  DatagrumpSender sender( argv[ 1 ], argv[ 2 ], debug, config);
   return sender.loop();
 }
 
 DatagrumpSender::DatagrumpSender( const char * const host,
 				  const char * const port,
-          const uint window_size,
 				  const bool debug,
           ContestConfig config)
   : socket_(),
-    controller_( window_size, debug, config ),
+    controller_( debug, config ),
     sequence_number_( 0 ),
     next_ack_expected_( 0 )
 {

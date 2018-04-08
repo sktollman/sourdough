@@ -174,7 +174,8 @@ my $pp95s = $signal_delays[ 0.95 * scalar @signal_delays ];
 printf STDERR qq{%.2f, }, $average_capacity;
 printf STDERR qq{%.2f, %.1f%%, }, $average_throughput, 100.0 * $average_throughput / $average_capacity;
 printf STDERR qq{%.0f, }, $pp95;
-printf STDERR qq{%.0f\n}, $pp95s;
+printf STDERR qq{%.0f, }, $pp95s;
+printf STDERR qq{%.2f\n}, 1000.0 * $average_throughput / $pp95s;
 
 # make graph
 my $earliest_bin = min( keys %arrivals, keys %capacity, keys %departures );

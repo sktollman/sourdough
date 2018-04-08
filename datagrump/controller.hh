@@ -15,7 +15,7 @@ public:
      the call site as well (in sender.cc) */
 
   /* Default constructor */
-  Controller( const uint window_size, const bool debug, ContestConfig config );
+  Controller( const bool debug, ContestConfig config );
 
   /* Get current window size, in datagrams */
   unsigned int window_size();
@@ -37,7 +37,6 @@ public:
 
 private:
   bool debug_; /* Enables debugging output */
-  uint window_size_; /* fixed window size */
   ContestConfig config_; /* Run configuration */
 };
 

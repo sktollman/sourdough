@@ -6,8 +6,8 @@
 using namespace std;
 
 /* Default constructor */
-Controller::Controller( const uint window_size, const bool debug, ContestConfig config)
-  : debug_( debug ), window_size_( window_size ), config_ ( config )
+Controller::Controller( const bool debug, ContestConfig config)
+  : debug_( debug ), config_ ( config )
 {}
 
 /* Get current window size, in datagrams */
@@ -18,16 +18,16 @@ unsigned int Controller::window_size()
 
   if ( debug_ ) {
     cerr << "At time " << time
-	 << " window size is " << window_size_ << endl;
+	 << " window size is " << config_.window_size << endl;
   }
 
   if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
     if ( time - prev_timestamp >= config_.rtt_estimate ) {
       prev_timestamp = time;
-      window_size_ = window_size_ + config_.additive_win_growth;
+      config_.window_size = config_.window_size + config_.additive_win_growth;
     }
   }
-  return window_size_;
+  return config_.window_size;
 }
 
 /* A datagram was sent */
@@ -42,7 +42,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
     if ( after_timeout ) {
-      window_size_ = (int) window_size_ * config_.multiplicative_win_decrease;
+      config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
       if ( debug_ ) {
         cerr << "Halfed window size after timeout\n" << endl;
       }
@@ -78,7 +78,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     } else {
       duplicate_acks++;
       if ( duplicate_acks == 3 ) {
-        window_size_ = (int) window_size_ * config_.multiplicative_win_decrease;
+        config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
         duplicate_acks = 0;
         cerr << "Halfwindow size after duplicate acks\n" << endl;
       }
