@@ -1,7 +1,7 @@
 #include "contest_config.hh"
 
 /* Default Constructor */
-ContestConfig::ContestConfig() 
+ContestConfig::ContestConfig()
   : mode(ContestConfig::Mode::Vanilla),
     window_size(50),
     additive_win_growth(0),

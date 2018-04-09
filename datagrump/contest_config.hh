@@ -10,18 +10,19 @@ class ContestConfig
 
     /* Default constructor */
     ContestConfig();
-  
+
     /* What controller mode to run */
     enum Mode: unsigned char
     {
       Vanilla = 0, /* Starter code + choose fixed window size */
-      SimpleAIMD = 1 /* For Part B */
+      SimpleAIMD = 1, /* For Part B */
+      DelayTriggered = 2 /* For Part C */
      /* Add more here ... */
     };
 
     /* Mode */
     Mode mode;
-  
+
     /* Vanilla configuration */
     int window_size;
 

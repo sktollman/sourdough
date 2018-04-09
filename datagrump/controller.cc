@@ -38,7 +38,8 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const bool after_timeout
 				    /* datagram was sent because of a timeout */ )
 {
-  if ( config_.mode == ContestConfig::Mode::Vanilla ) {
+  if ( config_.mode == ContestConfig::Mode::Vanilla ||
+    config_.mode == ContestConfig::Mode::DelayTriggered ) {
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
     if ( after_timeout ) {
@@ -86,10 +87,23 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 
     /* Update RTT estimate */
     uint64_t round_trip_sample = timestamp_ack_received - send_timestamp_acked;
-    config_.rtt_estimate = (int) (config_.rtt_estimate_weight * config_.rtt_estimate + 
+    config_.rtt_estimate = (int) (config_.rtt_estimate_weight * config_.rtt_estimate +
      (1 - config_.rtt_estimate_weight) * round_trip_sample);
     if ( debug_ ) {
       cerr << " --> RTT estimate: " << config_.rtt_estimate << endl;
+    }
+  } else if ( config_.mode == ContestConfig::Mode::DelayTriggered ) {
+    /* Decrease the window size if the threshold has been crossed, increase if now */
+    if (timestamp_ack_received - send_timestamp_acked >= config_.rtt_estimate) {
+      config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
+      if (debug_) {
+        cerr << "Halve window size if delay crosses threshold\n" << endl;
+      }
+    } else {
+      config_.window_size = config_.window_size + config_.additive_win_growth;
+      if (debug_) {
+        cerr << "Incrementing window size\n" << endl;
+      }
     }
   }
 

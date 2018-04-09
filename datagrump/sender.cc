@@ -42,9 +42,11 @@ ContestConfig::Mode translate_mode ( const char * mode) {
     return ContestConfig::Mode::Vanilla;
   } else if (strcmp(mode,"simpleaimd") == 0) {
     return ContestConfig::Mode::SimpleAIMD;
+  } else if (strcmp(mode,"delaytriggered") == 0) {
+    return ContestConfig::Mode::DelayTriggered;
   }
 
-  throw runtime_error ( "invalid mode specified: try vanilla or simpleaimd" );
+  throw runtime_error ( "invalid mode specified: try vanilla, simpleaimd, or delaytriggered" );
 }
 
 
@@ -64,8 +66,8 @@ int main( int argc, char *argv[] )
     cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window] [mode] [debug]" << endl;
     return EXIT_FAILURE;
   }
- 
-  /* Set configuration */ 
+
+  /* Set configuration */
   ContestConfig config;
   config.window_size = atoi(argv[ 3 ]);
   config.additive_win_growth = 1;
