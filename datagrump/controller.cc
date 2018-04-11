@@ -50,14 +50,14 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   uint64_t rtt = timestamp_ack_received - send_timestamp_acked;
   recent_acks_ >>= 1;
   if (rtt >= 200) {
-    recent_acks_ |= (1 << 4);
+    recent_acks_ |= (1 << 2);
     uint onbits = 0;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 3; i++) {
       if (recent_acks_ & (1 << i)) {
         onbits ++;
       }
     }
-    if (onbits >= 3) {
+    if (onbits >= 2) {
       window_size_ /= 2.0;
       if (window_size_ < 1) window_size_ = 1;
       recent_acks_ = 0; // reset so that we still only decrease every five packets
