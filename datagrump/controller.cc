@@ -55,8 +55,12 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
       if (window_size_ < 1) window_size_ = 1;
     }
   } else {
+    if (consecutive_triggers_ == 0) {
+      window_size_ += 2.0/window_size_;
+    } else {
+      window_size_ += 1.0/window_size_;
+    }
     consecutive_triggers_ = 0;
-    window_size_ += 1.0/window_size_;
   }
 
   if ( debug_ ) {
