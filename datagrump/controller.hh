@@ -10,10 +10,9 @@ class Controller
 private:
   bool debug_; /* Enables debugging output */
   double window_size_; /* the current window size in datagrams */
-  int consecutive_triggers_; /* the number of consecutive
-                                packets over the delay trigger threshold */
-  int consecutive_adds_; /* the number of consecutive
-                                packets below the delay trigger threshold */
+  char recent_acks_; /* a bit string in which the five lowest bits
+                        represent if recent acks have crossed the
+                        delay threshold */
 
 public:
   /* Public interface for the congestion controller */
