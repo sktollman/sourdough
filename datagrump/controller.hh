@@ -12,6 +12,8 @@ private:
   double window_size_; /* the current window size in datagrams */
   int consecutive_triggers_; /* the number of consecutive
                                 packets over the delay trigger threshold */
+  int consecutive_adds_; /* the number of consecutive
+                                packets below the delay trigger threshold */
 
 public:
   /* Public interface for the congestion controller */

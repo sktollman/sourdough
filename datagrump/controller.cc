@@ -7,7 +7,7 @@ using namespace std;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug ), window_size_( 14 ), consecutive_triggers_( 0 )
+  : debug_( debug ), window_size_( 14 ), consecutive_triggers_( 0 ), consecutive_adds_( 0 )
 {}
 
 /* Get current window size, in datagrams */
@@ -49,18 +49,16 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 {
   uint64_t rtt = timestamp_ack_received - send_timestamp_acked;
   if (rtt >= 200) {
+    consecutive_adds_ = 0;
     consecutive_triggers_ ++;
     if (consecutive_triggers_ % 2 == 0) {
       window_size_ /= 2.0;
       if (window_size_ < 1) window_size_ = 1;
     }
   } else {
-    if (consecutive_triggers_ == 0) {
-      window_size_ += 2.0/window_size_;
-    } else {
-      window_size_ += 1.0/window_size_;
-    }
     consecutive_triggers_ = 0;
+    consecutive_adds_ ++;
+    window_size_ += consecutive_adds_/window_size_;
   }
 
   if ( debug_ ) {
