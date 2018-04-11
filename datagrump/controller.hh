@@ -9,6 +9,7 @@ class Controller
 {
 private:
   bool debug_; /* Enables debugging output */
+  double window_size_; /* the current window size in datagrams */
 
   /* Add member variables here */
 
