@@ -49,7 +49,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 {
   uint64_t rtt = timestamp_ack_received - send_timestamp_acked;
   recent_acks_ >>= 1;
-  if (rtt >= 180) {
+  if (rtt >= 250) {
     recent_acks_ |= (1 << 2);
     uint onbits = 0;
     for (int i = 0; i < 3; i++) {
