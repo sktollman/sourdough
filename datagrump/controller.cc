@@ -50,7 +50,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   uint64_t rtt = timestamp_ack_received - send_timestamp_acked;
   if (rtt >= 200) {
     consecutive_triggers_ ++;
-    if (consecutive_triggers_ % 2 == 1) {
+    if (consecutive_triggers_ == 1) {
       window_size_ /= 2.0;
       if (window_size_ < 1) window_size_ = 1;
     }
