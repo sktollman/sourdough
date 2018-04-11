@@ -60,7 +60,6 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     if (onbits >= 2) {
       window_size_ /= 2.0;
       if (window_size_ < 1) window_size_ = 1;
-      recent_acks_ = 0; // reset so that we still only decrease every five packets
     }
   } else {
     window_size_ += 1.0/window_size_;
