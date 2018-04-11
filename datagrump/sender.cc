@@ -73,6 +73,7 @@ int main( int argc, char *argv[] )
   config.additive_win_growth = 1;
   config.multiplicative_win_decrease = 0.5;
   config.mode = translate_mode( argv[ 4 ]);
+  config.rtt_estimate = 200;
 
   /* create sender object to handle the accounting */
   /* all the interesting work is done by the Controller */

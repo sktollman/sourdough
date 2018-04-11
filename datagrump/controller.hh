@@ -38,6 +38,9 @@ public:
 private:
   bool debug_; /* Enables debugging output */
   ContestConfig config_; /* Run configuration */
+  uint64_t increase_ack_ ; /* the sequence number that when acked means we should increase cwnd */
+  uint64_t curr_seqno_; /* the most recently sent seqno */
+  bool increased_ ;
 };
 
 #endif

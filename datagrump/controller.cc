@@ -7,7 +7,8 @@ using namespace std;
 
 /* Default constructor */
 Controller::Controller( const bool debug, ContestConfig config)
-  : debug_( debug ), config_ ( config )
+  : debug_( debug ), config_ ( config ), increase_ack_ (config.window_size),
+   curr_seqno_(0), increased_ (false)
 {}
 
 /* Get current window size, in datagrams */
@@ -45,10 +46,12 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     if ( after_timeout ) {
       config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
       if ( debug_ ) {
-        cerr << "Halfed window size after timeout\n" << endl;
+        cerr << "Halfed window size after timeout" << endl;
       }
     }
   }
+
+  curr_seqno_ = sequence_number;
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
@@ -81,7 +84,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
       if ( duplicate_acks == 3 ) {
         config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
         duplicate_acks = 0;
-        cerr << "Halfwindow size after duplicate acks\n" << endl;
+        cerr << "Halve window size after duplicate acks" << endl;
       }
     }
 
@@ -94,16 +97,28 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     }
   } else if ( config_.mode == ContestConfig::Mode::DelayTriggered ) {
     /* Decrease the window size if the threshold has been crossed, increase if now */
+    //cerr << "delay: " << (timestamp_ack_received - send_timestamp_acked) << endl;
     if (timestamp_ack_received - send_timestamp_acked >= config_.rtt_estimate) {
-      config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
-      if (debug_) {
-        cerr << "Halve window size if delay crosses threshold\n" << endl;
+      if (increased_) {
+        config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
+        if (config_.window_size == 0) {
+          config_.window_size = 1;
+        }
+        if (debug_) {
+          cerr << "Halve window size if delay crosses threshold" << endl;
+        }
+        increased_ = false;
       }
-    } else {
+      if (sequence_number_acked == increase_ack_) {
+          increase_ack_ ++;
+      }
+    } else if (sequence_number_acked == increase_ack_ ){
       config_.window_size = config_.window_size + config_.additive_win_growth;
+      increase_ack_ = curr_seqno_;
       if (debug_) {
-        cerr << "Incrementing window size\n" << endl;
+        cerr << "Incrementing window size" << endl;
       }
+      increased_ = true;
     }
   }
 
