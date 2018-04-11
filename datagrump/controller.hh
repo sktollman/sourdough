@@ -10,8 +10,8 @@ class Controller
 private:
   bool debug_; /* Enables debugging output */
   double window_size_; /* the current window size in datagrams */
-
-  /* Add member variables here */
+  int consecutive_triggers_; /* the number of consecutive
+                                packets over the delay trigger threshold */
 
 public:
   /* Public interface for the congestion controller */
