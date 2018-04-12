@@ -13,21 +13,13 @@ Controller::Controller( const bool debug, ContestConfig config)
 /* Get current window size, in datagrams */
 unsigned int Controller::window_size()
 {
-  static unsigned int prev_timestamp = 0;
   unsigned int time = timestamp_ms();
-
   if ( debug_ ) {
     cerr << "At time " << time
 	 << " window size is " << config_.window_size << endl;
   }
-
-  if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
-    if ( time - prev_timestamp >= config_.rtt_estimate ) {
-      prev_timestamp = time;
-      config_.window_size = config_.window_size + config_.additive_win_growth;
-    }
-  }
-  return config_.window_size;
+  
+  return (int) config_.window_size;
 }
 
 /* A datagram was sent */
@@ -42,7 +34,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
     if ( after_timeout ) {
-      config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
+      config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
       if ( debug_ ) {
         cerr << "Halfed window size after timeout\n" << endl;
       }
@@ -66,31 +58,26 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
                                /* when the ack was received (by sender) */
 {
   static uint64_t last_seq_acked = 0;
-  static int duplicate_acks = 0;
 
   if ( config_.mode == ContestConfig::Mode::Vanilla ) {
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
-
-    /* Update duplicate acks */
-    if ( sequence_number_acked >= last_seq_acked ) {
-      last_seq_acked = sequence_number_acked;
-    } else {
-      duplicate_acks++;
-      if ( duplicate_acks == 3 ) {
-        config_.window_size = (int) config_.window_size * config_.multiplicative_win_decrease;
-        duplicate_acks = 0;
-        cerr << "Halfwindow size after duplicate acks\n" << endl;
+    
+    /* If we miss one of the consecutive ACKs after the zeroth one, we consider
+       it a loss */
+    if (sequence_number_acked - last_seq_acked != 1 && sequence_number_acked != 0) {
+      config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
+      if ( debug_) {
+        cerr << " --> Cut window in half due to missed ACK." << endl;
       }
+    } else {
+      
+      /* Update cwnd */
+      config_.window_size += config_.additive_win_growth / config_.window_size;
     }
 
-    /* Update RTT estimate */
-    uint64_t round_trip_sample = timestamp_ack_received - send_timestamp_acked;
-    config_.rtt_estimate = (int) (config_.rtt_estimate_weight * config_.rtt_estimate + 
-     (1 - config_.rtt_estimate_weight) * round_trip_sample);
-    if ( debug_ ) {
-      cerr << " --> RTT estimate: " << config_.rtt_estimate << endl;
-    }
+    last_seq_acked = sequence_number_acked;
+
   }
 
   if ( debug_ ) {

@@ -7,5 +7,5 @@ ContestConfig::ContestConfig()
     additive_win_growth(0),
     multiplicative_win_decrease(0),
     rtt_estimate(200),
-    rtt_estimate_weight(0.8)
+    rtt_estimate_weight(0.9)
 {}

@@ -23,7 +23,7 @@ class ContestConfig
     Mode mode;
   
     /* Vanilla configuration */
-    int window_size;
+    double window_size;
 
     /* Simple AIMD configuration */
     int additive_win_growth;
