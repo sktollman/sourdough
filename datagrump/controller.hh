@@ -2,6 +2,7 @@
 #define CONTROLLER_HH
 
 #include <cstdint>
+#include <list>
 
 /* Congestion controller interface */
 
@@ -10,7 +11,12 @@ class Controller
 private:
   bool debug_; /* Enables debugging output */
 
-  /* Add member variables here */
+  double max_delay_ewma_a_;
+  
+  uint64_t epoch_max_delay_; /* Max delay at current epoch in ms */
+  unsigned int epoch_duration_; /* How long our epochs take, in ms */ 
+  std::list<uint64_t> epoch_packet_delays_;
+  int epoch_max_delay_delta_;
 
 public:
   /* Public interface for the congestion controller */

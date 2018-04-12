@@ -7,17 +7,58 @@ using namespace std;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug )
+  : debug_( debug ), 
+    max_delay_ewma_a_ ( 0.9 ),
+    epoch_max_delay_ ( 100 ),
+    epoch_duration_ ( 10 ),
+    epoch_packet_delays_{},
+    epoch_max_delay_delta_ ( 0 )
 {}
 
-/* Get current window size, in datagrams */
+/* Get current window size, in datagrams.
+   Also works as a 'tick' function, called almost
+   every millisecond.  */
 unsigned int Controller::window_size()
 {
-  /* Default: fixed window size of 100 outstanding datagrams */
-  unsigned int the_window_size = 50;
+  static unsigned int the_window_size = 50;
+  static uint64_t last_epoch_time = 0;
+  uint64_t time = timestamp_ms();
 
-  if ( debug_ ) {
-    cerr << "At time " << timestamp_ms()
+  if (time - last_epoch_time > epoch_duration_) {
+    cout << "-----------------------------EPOCH change------------------------------" << endl;
+
+    // On every epoch change, we recalculate the delay max, the delta, and update the window
+    // size. 
+    last_epoch_time = timestamp_ms();
+    uint64_t max_delay = 0;
+    for (list<uint64_t>::iterator it=epoch_packet_delays_.begin(); 
+          it != epoch_packet_delays_.end(); it++) {
+      if ( debug_ ) {
+        cerr << ' ' << *it << endl;
+      }
+      if ( *it > max_delay )
+        max_delay = *it;
+    }
+
+    if ( max_delay != 0 ) {
+
+      // Update our current max delay, and store the current delta
+      // between time delays. 
+      uint64_t prev_epoch_max = epoch_max_delay_;
+      epoch_max_delay_ = (uint64_t) (max_delay_ewma_a_ * epoch_max_delay_ + 
+          (1 - max_delay_ewma_a_) * max_delay);
+      epoch_max_delay_delta_ = epoch_max_delay_ - prev_epoch_max;
+      cerr << epoch_max_delay_delta_ << endl;
+    }
+    
+    
+    epoch_packet_delays_.clear();
+  } 
+  
+
+
+  if ( 0 ) {
+    cerr << "At time " << time
 	 << " window size is " << the_window_size << endl;
   }
 
@@ -32,7 +73,6 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const bool after_timeout
 				    /* datagram was sent because of a timeout */ )
 {
-  /* Default: take no action */
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
@@ -50,9 +90,13 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
-  /* Default: take no action */
+  //static uint64_t last_ack_no = 0; 
+  //last_ack_no = sequence_number_acked;
 
-  if ( debug_ ) {
+  // Add current delay to delay list
+  epoch_packet_delays_.push_back(timestamp_ack_received - send_timestamp_acked);
+
+  if ( 0 ) {
     cerr << "At time " << timestamp_ack_received
 	 << " received ack for datagram " << sequence_number_acked
 	 << " (send @ time " << send_timestamp_acked
