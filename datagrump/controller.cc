@@ -36,7 +36,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     if ( after_timeout ) {
       config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
       if ( debug_ ) {
-        cerr << "Halfed window size after timeout\n" << endl;
+        cerr << " --> Cut window size due to timeout\n" << endl;
       }
     }
   }
@@ -68,7 +68,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     if (sequence_number_acked - last_seq_acked != 1 && sequence_number_acked != 0) {
       config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
       if ( debug_) {
-        cerr << " --> Cut window in half due to missed ACK." << endl;
+        cerr << " --> Cut window due to missed ACK.\n" << endl;
       }
     } else {
       
