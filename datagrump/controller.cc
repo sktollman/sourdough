@@ -12,7 +12,10 @@ Controller::Controller( const bool debug )
     epoch_max_delay_ ( 100 ),
     epoch_duration_ ( 10 ),
     epoch_packet_delays_{},
-    epoch_max_delay_delta_ ( 0 )
+    epoch_max_delay_delta_ ( 0 ),
+    delay_profile_map_{},
+    window_size2delays_{},
+    the_window_size ( 50 )
 {}
 
 /* Get current window size, in datagrams.
@@ -20,7 +23,6 @@ Controller::Controller( const bool debug )
    every millisecond.  */
 unsigned int Controller::window_size()
 {
-  static unsigned int the_window_size = 50;
   static uint64_t last_epoch_time = 0;
   uint64_t time = timestamp_ms();
 
@@ -31,7 +33,7 @@ unsigned int Controller::window_size()
     // size. 
     last_epoch_time = timestamp_ms();
     uint64_t max_delay = 0;
-    for (list<uint64_t>::iterator it=epoch_packet_delays_.begin(); 
+    for (auto it=epoch_packet_delays_.begin(); 
           it != epoch_packet_delays_.end(); it++) {
       if ( debug_ ) {
         cerr << ' ' << *it << endl;
@@ -62,7 +64,7 @@ unsigned int Controller::window_size()
 	 << " window size is " << the_window_size << endl;
   }
 
-  return the_window_size;
+  return (int) the_window_size;
 }
 
 /* A datagram was sent */
@@ -73,6 +75,15 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const bool after_timeout
 				    /* datagram was sent because of a timeout */ )
 {
+
+  unsigned int window_size_ = window_size();
+  delay_profile_map_[sequence_number] = window_size_;
+
+  if ( 0 ) {
+    for (auto elem : delay_profile_map_) {
+      cerr << elem.first << " " << elem.second << "\n" << endl;
+    }
+  }
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
@@ -94,7 +105,25 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   //last_ack_no = sequence_number_acked;
 
   // Add current delay to delay list
-  epoch_packet_delays_.push_back(timestamp_ack_received - send_timestamp_acked);
+  // TODO: any reason to keep this if we are just taking the max?
+  unsigned int delay = timestamp_ack_received - send_timestamp_acked;
+  epoch_packet_delays_.push_back(delay);
+  unsigned int packet_window = delay_profile_map_[sequence_number_acked];
+  if (window_size2delays_.count(packet_window) == 0) {
+    window_size2delays_[packet_window] = {};
+  }
+
+  window_size2delays_[packet_window].push_back(delay);
+
+  if ( 1 ) {
+    for (auto elem : window_size2delays_) {
+      cerr << elem.first << endl;
+      for (auto elem_inner : elem.second) {
+        cerr << " --> " << elem_inner << endl;
+      }
+    }
+  }
+
 
   if ( 0 ) {
     cerr << "At time " << timestamp_ack_received

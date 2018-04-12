@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <list>
+#include <map>
 
 /* Congestion controller interface */
 
@@ -17,6 +18,9 @@ private:
   unsigned int epoch_duration_; /* How long our epochs take, in ms */ 
   std::list<uint64_t> epoch_packet_delays_;
   int epoch_max_delay_delta_;
+  std::map<uint64_t, unsigned int> delay_profile_map_;
+  std::map<unsigned int, std::list<unsigned int>> window_size2delays_;
+  double the_window_size;
 
 public:
   /* Public interface for the congestion controller */
