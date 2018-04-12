@@ -19,8 +19,18 @@ private:
   std::list<uint64_t> epoch_packet_delays_;
   int epoch_max_delay_delta_;
   std::map<uint64_t, unsigned int> delay_profile_map_;
-  std::map<unsigned int, std::list<unsigned int>> window_size2delays_;
+  std::map<int, std::list<int>> delay2winsize_;
   double the_window_size;
+  bool in_slow_start_;
+  int min_delay_;
+  int slow_start_thresh_;
+  bool in_loss_recovery_;
+  double r_;
+  int curr_delay_estimate_;
+  double mult_decrease_factor_;
+
+  void set_next_delay();
+  void set_next_window();
 
 public:
   /* Public interface for the congestion controller */
