@@ -12,26 +12,41 @@ class Controller
 private:
   bool debug_; /* Enables debugging output */
 
-  double max_delay_ewma_a_;
-  double delay_ewma_a_;
+  /* Max delay at current epoch in ms */
+  uint64_t epoch_max_delay_;
 
-  uint64_t epoch_max_delay_; /* Max delay at current epoch in ms */
-  unsigned int epoch_duration_; /* How long our epochs take, in ms */ 
+  /* List of packet delays for the current epoch */
   std::list<uint64_t> epoch_packet_delays_;
-  int epoch_max_delay_delta_;
-  std::map<uint64_t, unsigned int> delay_profile_map_;
-  std::map<int, int> delay2winsize_;
-  std::map<int, double> winsize2delay_;
-  double the_window_size;
-  bool in_slow_start_;
-  int min_delay_;
-  int slow_start_thresh_;
-  bool in_loss_recovery_;
-  double r_;
-  int curr_delay_estimate_;
-  double mult_decrease_factor_;
 
+  /* Max delay of current epoch - max delay of previous epoch, in ms */
+  int epoch_max_delay_delta_;
+
+  /* Maps each sequence number sent to the window at the time it was sent */
+  std::map<uint64_t, unsigned int> seqno2winsize_;
+
+  /* Maps a window size to an EWMA of experienced delays at that window size */
+  std::map<int, double> delay_profile_;
+
+  /* The current window size */
+  double the_window_size;
+
+  /* The minimum delay in ms experienced so far. */
+  int min_delay_;
+
+  /* The estimated delay in ms we should have for the current epoch. 
+     Verus uses the value of epoch_max_delay_delta_ to tweak this
+     value, then it finds the corresponding window size from the delay
+     profile and sets it for the next epoch. */
+  int est_delay_;
+
+  /* State variables */
+  bool in_slow_start_;
+  bool in_loss_recovery_;
+
+  /* Sets the next est_delay_ given the current value */
   void set_next_delay( uint64_t prev_epoch_max );
+
+  /* Sets the window for the next epoch */
   void set_next_window();
 
 public:
