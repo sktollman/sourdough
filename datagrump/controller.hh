@@ -13,13 +13,15 @@ private:
   bool debug_; /* Enables debugging output */
 
   double max_delay_ewma_a_;
-  
+  double delay_ewma_a_;
+
   uint64_t epoch_max_delay_; /* Max delay at current epoch in ms */
   unsigned int epoch_duration_; /* How long our epochs take, in ms */ 
   std::list<uint64_t> epoch_packet_delays_;
   int epoch_max_delay_delta_;
   std::map<uint64_t, unsigned int> delay_profile_map_;
-  std::map<int, std::list<int>> delay2winsize_;
+  std::map<int, int> delay2winsize_;
+  std::map<int, double> winsize2delay_;
   double the_window_size;
   bool in_slow_start_;
   int min_delay_;
@@ -29,7 +31,7 @@ private:
   int curr_delay_estimate_;
   double mult_decrease_factor_;
 
-  void set_next_delay();
+  void set_next_delay( uint64_t prev_epoch_max );
   void set_next_window();
 
 public:
