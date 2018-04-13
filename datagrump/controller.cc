@@ -22,7 +22,7 @@ Controller::Controller( const bool debug )
     the_window_size ( 1 ),
     in_slow_start_ ( true ),
     min_delay_ ( 1000 ),
-    slow_start_thresh_ ( 5 ),
+    slow_start_thresh_ ( 10 ),
     in_loss_recovery_ ( false ),
     r_ ( 2 ),
     curr_delay_estimate_ ( 50 ),
@@ -101,7 +101,7 @@ void Controller::set_next_window()
   }
 
   int dmax_window_dec = 10;   
-  int dmax_window_inc = 3; 
+  int dmax_window_inc = 2; 
   if (window > the_window_size) {
     if (fabs(window - the_window_size) > dmax_window_inc)
         window = the_window_size + dmax_window_inc;
@@ -175,7 +175,7 @@ unsigned int Controller::window_size()
   }
 */
 
-  if (the_window_size < 2)
+  if (the_window_size < 3)
     the_window_size = 3;
   return (int) the_window_size;
 }
