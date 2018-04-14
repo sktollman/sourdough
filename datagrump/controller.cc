@@ -18,7 +18,7 @@ using namespace std;
 
 /* Additional parameters */
 #define SS_THRESH     10  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 1   // max window size increase per epoch
+#define D_MAX_WIN_INC 0.5   // max window size increase per epoch
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
 #define MIN_WIN_SIZE  3   // in packets
