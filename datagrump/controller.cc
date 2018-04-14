@@ -13,13 +13,13 @@ using namespace std;
 #define DELTA_1         1   // ms
 #define DELTA_2         2   // ms
 #define R               2   // delay-throughput tradeoff
-#define MAX_DELAY_ALPHA 0.5 // alpha for EWMA
-#define EST_DELAY_ALPHA 0.5 // alpha for EWMA
+#define MAX_DELAY_ALPHA 0.3 // alpha for EWMA
+#define EST_DELAY_ALPHA 0.3 // alpha for EWMA
 
 /* Additional parameters */
 #define SS_THRESH     10  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 2   // max window size increase per epoch
-#define D_MAX_WIN_DEC 10  // max window size decrease per epoch
+#define D_MAX_WIN_INC 1   // max window size increase per epoch
+#define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
 #define MIN_WIN_SIZE  3   // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
@@ -100,8 +100,10 @@ void Controller::set_next_window()
     if ( fabs(window - the_window_size) > D_MAX_WIN_INC )
         window = the_window_size + D_MAX_WIN_INC;
   } else {
-    if ( fabs(window - the_window_size) > D_MAX_WIN_DEC )
+    if ( fabs(window - the_window_size) > D_MAX_WIN_DEC ) {
+        cerr << fabs(window - the_window_size) << endl;
         window = the_window_size - D_MAX_WIN_DEC;
+    }
   }
 
   the_window_size = window;
