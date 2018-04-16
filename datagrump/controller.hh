@@ -18,6 +18,9 @@ private:
   /* List of packet delays for the current epoch */
   std::list<uint64_t> epoch_packet_delays_;
 
+  std::list<double> rtts_;
+  std::list<double> delivery_rates_; // In packets/ms
+
   /* Max delay of current epoch - max delay of previous epoch, in ms */
   int epoch_max_delay_delta_;
 
@@ -40,6 +43,13 @@ private:
   int est_delay_;
 
   int epoch_throughput_;
+  double epoch_allowed_;
+  int epoch_sent_;
+  int inflight_;
+  int curr_delay_obs_;
+
+  double rtt_prop_;
+  double btlbw_;
 
   /* State variables */
   bool in_slow_start_;
@@ -50,6 +60,7 @@ private:
 
   /* Sets the window for the next epoch */
   void set_next_window( uint64_t curr_epoch );
+  void set_next_window_2( uint64_t prev_epoch_max );
 
 public:
   /* Public interface for the congestion controller */

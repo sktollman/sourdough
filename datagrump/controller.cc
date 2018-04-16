@@ -25,11 +25,17 @@ using namespace std;
 #define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
+/* BBR parameters */
+#define RTT_WIN       100 // Number of elements in RTT window
+#define DEL_RATES_WIN 100  // Number of elements in delivery rate window
+
 /* Default constructor */
 Controller::Controller( const bool debug )
   : debug_( debug ), 
     epoch_max_delay_ ( 100 ),
     epoch_packet_delays_{},
+    rtts_{},
+    delivery_rates_{},
     epoch_max_delay_delta_ ( 0 ),
     seqno2winsize_{},
     delay_profile_{},
@@ -37,6 +43,12 @@ Controller::Controller( const bool debug )
     min_delay_ ( 1000 ),
     est_delay_ ( 50 ),
     epoch_throughput_ (0),
+    epoch_allowed_ (4),
+    epoch_sent_ (0),
+    inflight_ (0),
+    curr_delay_obs_(0),
+    rtt_prop_ (50),
+    btlbw_ (5),
     in_slow_start_ ( true ),
     in_loss_recovery_ ( false )
 {}
@@ -56,6 +68,21 @@ void Controller::set_next_delay( uint64_t prev_epoch_max )
 
   est_delay_ = max(est_delay_, min_delay_);
 }
+
+void Controller::set_next_window_2( uint64_t prev_epoch_max )
+{
+
+  if ( prev_epoch_max / (double) min_delay_ > R ) {
+    epoch_allowed_ -= 1;
+  } else if ( epoch_max_delay_delta_ > 0) {
+    epoch_allowed_ -= 1;
+  } else {
+    epoch_allowed_ += 2;
+  }
+
+  epoch_allowed_ = fmax(0, epoch_allowed_);
+}
+
 
 /* Set the window size for the next epoch based on est_delay_
    and the delay profile. */
@@ -149,22 +176,56 @@ unsigned int Controller::window_size()
     }
     
     // Update the next delay estimate and thus the next window.
+    //cerr << "Allowed: " << epoch_allowed_ << ", Sent: " << epoch_sent_ << endl;
     set_next_delay( prev_epoch_max );
     set_next_window( epoch_no );
+    set_next_window_2( prev_epoch_max );
 
     epoch_packet_delays_.clear();
     last_epoch_time = timestamp_ms();
     epoch_no++;
+
+    // Update delivery rates.
+    delivery_rates_.push_back(epoch_throughput_ / (1.0 * EPSILON));
+    if (delivery_rates_.size() > DEL_RATES_WIN) {
+      delivery_rates_.pop_front();
+    }
+
+
     epoch_throughput_ = 0;
+    epoch_sent_ = 0;
+
+   // double btlbw = *max_element(delivery_rates_.begin(), delivery_rates_.end());
+   // epoch_allowed_ = (int) (btlbw * EPSILON);
   } 
   
-  if ( debug_ ) {
+  if ( 0 ) {
     cerr << "At time " << time
 	 << " window size is " << the_window_size << endl;
   }
 
+
   // Keep the window from coming back all the way to 1. 
   the_window_size = fmax(MIN_WIN_SIZE, the_window_size);
+
+  if (!in_loss_recovery_ && !in_slow_start_) {
+    //double rtt_prop = *min_element(rtts_.begin(), rtts_.end());
+    //double bdp = rtt_prop * *max_element(delivery_rates_.begin(), delivery_rates_.end());
+/*    if (inflight_ >= bdp) {
+      cerr << inflight_ << endl;
+      cerr << " ERR " << endl;
+      return 0;
+    }
+*/
+    // Put a cap on number that can be safely sent.
+    if (epoch_sent_ >= 10000 || curr_delay_obs_ > 80) {
+      cerr << "LOW" << endl;
+      return MIN_WIN_SIZE;
+    } else {
+      return (int) the_window_size;    
+    }
+  }
+
   return (int) the_window_size;
 }
 
@@ -177,7 +238,9 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    /* datagram was sent because of a timeout */ )
 {
 
-  seqno2winsize_[sequence_number] = the_window_size;
+  seqno2winsize_[sequence_number] = window_size();
+  inflight_++;
+  epoch_sent_++;
   
   if ( after_timeout ) {
 
@@ -206,6 +269,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 {
   static uint64_t last_ack_no = 0;
   epoch_throughput_++;
+  inflight_--;
 
   if ( sequence_number_acked != 0 && sequence_number_acked - last_ack_no != 1) {
 
@@ -220,9 +284,18 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   
   // Add current delay to delay list
   int observed_delay = timestamp_ack_received - send_timestamp_acked;
+  curr_delay_obs_ = observed_delay;
+  cerr << "Obs delay: " << observed_delay << endl;
   min_delay_ = min(min_delay_, observed_delay);
 
   epoch_packet_delays_.push_back(observed_delay);
+
+  // Update running window of RTTs.
+  rtts_.push_back(observed_delay);
+  if (rtts_.size() > RTT_WIN) {
+    rtts_.pop_front();
+  }
+
   unsigned int packet_window = seqno2winsize_[sequence_number_acked];
 
   if ( !in_loss_recovery_ ) {
