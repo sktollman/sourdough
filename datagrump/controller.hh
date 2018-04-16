@@ -39,6 +39,8 @@ private:
      profile and sets it for the next epoch. */
   int est_delay_;
 
+  int epoch_throughput_;
+
   /* State variables */
   bool in_slow_start_;
   bool in_loss_recovery_;

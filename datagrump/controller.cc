@@ -22,6 +22,7 @@ using namespace std;
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
 #define MIN_WIN_SIZE  4   // in packets
+#define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
 /* Default constructor */
@@ -35,6 +36,7 @@ Controller::Controller( const bool debug )
     the_window_size ( 1 ),
     min_delay_ ( 1000 ),
     est_delay_ ( 50 ),
+    epoch_throughput_ (0),
     in_slow_start_ ( true ),
     in_loss_recovery_ ( false )
 {}
@@ -153,6 +155,7 @@ unsigned int Controller::window_size()
     epoch_packet_delays_.clear();
     last_epoch_time = timestamp_ms();
     epoch_no++;
+    epoch_throughput_ = 0;
   } 
   
   if ( debug_ ) {
@@ -202,6 +205,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
                                /* when the ack was received (by sender) */
 {
   static uint64_t last_ack_no = 0;
+  epoch_throughput_++;
 
   if ( sequence_number_acked != 0 && sequence_number_acked - last_ack_no != 1) {
 
@@ -245,7 +249,8 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     }
   }
 
-  if ( in_slow_start_ && observed_delay  >= SS_THRESH * min_delay_ ) {
+  if ( in_slow_start_ && 
+    (observed_delay  >= SS_THRESH * min_delay_ || the_window_size >= MAX_WIN_SIZE)) {
     in_slow_start_ = false;
   }
 
