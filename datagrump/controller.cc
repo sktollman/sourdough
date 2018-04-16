@@ -6,6 +6,8 @@
 #include "controller.hh"
 #include "timestamp.hh"
 
+#include "lowess.h"
+
 using namespace std;
 
 /* Core Verus parameters */
@@ -20,13 +22,13 @@ using namespace std;
 #define SS_THRESH     10  // multiple of min delay to use as the slow start threshold
 #define D_MAX_WIN_INC 2   // max window size increase per epoch
 #define D_MAX_WIN_DEC 10  // max window size decrease per epoch
-#define SMOOTH_FACTOR 10  // for smoothing the delay profile 
+#define SMOOTH_FACTOR 10  // for smoothing the delay profile
 #define MIN_WIN_SIZE  3   // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug ), 
+  : debug_( debug ),
     epoch_max_delay_ ( 100 ),
     epoch_packet_delays_{},
     epoch_max_delay_delta_ ( 0 ),
@@ -65,26 +67,79 @@ void Controller::set_next_window()
   double min_diff = 10000;
 
   // Heuristically smooth out the delay profile, because there
-  // are many outliers. 
+  // are many outliers.
   //
-  // NOTE: Verus interpolates the delay profile using an external library. 
+  // NOTE: Verus interpolates the delay profile using an external library.
   //       this is a heuristic.
-  double map_delay_prev = 40;
-  for ( auto elem : delay_profile_ )
-  {
-    // If the next element differs from the previous one a lot,
-    // smooth out the difference.
-    if ( fabs(elem.second - map_delay_prev) > SMOOTH_FACTOR ) {
-      if ( elem.second > map_delay_prev )
-        delay_profile_[elem.first] = map_delay_prev + SMOOTH_FACTOR;
-      else
-        delay_profile_[elem.first] = map_delay_prev - SMOOTH_FACTOR;
-    }
-    map_delay_prev = elem.second;
+
+  //CppLowess::TemplatedLowess< std::vector<double>, double > dlowess;
+  //vector<double> x; // vector of delays
+  int min_win = -1;
+  int max_win = -1;
+  for ( auto elem : delay_profile_ ) {
+    if (min_win == -1 || elem.first < min_win) min_win = elem.first;
+    if (elem.first > max_win) max_win = elem.first;
+    //x.push_back(elem.second);
+  }
+  // std::vector<double> y;
+  // std::vector<double> ys;
+  // std::vector<double> resid_weights;
+  // std::vector<double> weights;
+  // dlowess.lowess(x, y, 5, 5, 1, ys, resid_weights, weights);
+
+  // std::map<int, double> smoothed_delay_profile;
+  // for (uint i = 0; i < y.size(); i ++) {
+  //   smoothed_delay_profile[i + first_win] = y[i];
+  // }
+
+  // create list of keys, sort by window size ascending
+  vector<int> v;
+  for ( auto elem : delay_profile_ ) {
+    v.push_back(elem.first);
+  }
+  std::sort (v.begin(), v.end());
+
+
+  std::map<int, double> smoothed_delay_profile;
+  for (uint i = 2; i < v.size() - 2; i ++) {
+    //int avg_window_size = (v[i-2] + v[i-1] + v[i] + v[i+1] + v[i+2])/5.0;
+    double avg_delay = (delay_profile_[v[i-2]] + delay_profile_[v[i-1]] +
+      delay_profile_[v[i]] + delay_profile_[v[i+1]] + delay_profile_[v[i+2]])/5.0;
+    smoothed_delay_profile[i] = avg_delay;
   }
 
+  //cout << "min_win: " << min_win << ", max_win: " << max_win << endl;
+
+  for (int i = min_win + 1; i <= max_win; i ++) {
+    if (!smoothed_delay_profile.count(i)) return;
+    double delay = delay_profile_[i];
+    double diff = fabs(delay - smoothed_delay_profile[i]) - SMOOTH_FACTOR;
+    if ( diff > 0 ) {
+      if ( delay > smoothed_delay_profile[i] )
+        delay_profile_[i] = delay - diff;
+      else
+        delay_profile_[i] = delay + diff;
+    }
+    //if (delay != delay_profile_[i]) cout << "before: " << delay << ", after: " << delay_profile_[i] << endl;;
+  }
+  //exit(0);
+
+  // cout << "reg profile: ";
+  // for (auto elem : delay_profile_)
+  // {
+  //   cout << "w: " << elem.first << ", d: " << elem.second << "; ";
+  // }
+  // cout << endl;
+
+  // cout << "smoothed profile: ";
+  // for (auto elem : smoothed_delay_profile)
+  // {
+  //   cout << "w: " << elem.first << ", d: " << elem.second << "; ";
+  // }
+  // cout << endl;
+
   // Choose the window size that corresponds to the closest
-  // delay to our target delay. 
+  // delay to our target delay.
   for (auto elem : delay_profile_)
   {
     if ( elem.second - target_delay < min_diff ) {
@@ -93,7 +148,7 @@ void Controller::set_next_window()
     }
   }
 
-  // Make sure that the window size is not changed too abruptly. 
+  // Make sure that the window size is not changed too abruptly.
   // We care more about overshooting the capacity less than undershooting,
   // so D_MAX_WIN_INC < D_MAX_WIN_DEC.
   if ( window > the_window_size ) {
@@ -109,7 +164,7 @@ void Controller::set_next_window()
 
 
 /* Get current window size, in datagrams.
-   
+
    Since this function is called very frequently,
    it serves as the tick function that updates epoch
    information. */
@@ -121,12 +176,12 @@ unsigned int Controller::window_size()
   // If it's time to change epochs...
   if (time - last_epoch_time > EPSILON && !in_loss_recovery_ && !in_slow_start_) {
 
-    // ... recalculate the max delay, the max delay delta, 
+    // ... recalculate the max delay, the max delay delta,
     // and update delay and thus window size we'd like for the coming
     // epoch.
 
     uint64_t max_delay = 0;
-    for ( auto it=epoch_packet_delays_.begin(); 
+    for ( auto it=epoch_packet_delays_.begin();
           it != epoch_packet_delays_.end(); it++ ) {
       if ( debug_ ) {
         cerr << ' ' << *it << endl;
@@ -139,26 +194,26 @@ unsigned int Controller::window_size()
     if ( max_delay != 0 ) {
 
       // Update our current max delay (EWMA), and store the current delta
-      // between time delays. 
-      epoch_max_delay_ = (uint64_t) (MAX_DELAY_ALPHA * epoch_max_delay_ + 
+      // between time delays.
+      epoch_max_delay_ = (uint64_t) (MAX_DELAY_ALPHA * epoch_max_delay_ +
           (1 - MAX_DELAY_ALPHA) * max_delay);
       epoch_max_delay_delta_ = epoch_max_delay_ - prev_epoch_max;
     }
-    
+
     // Update the next delay estimate and thus the next window.
     set_next_delay( prev_epoch_max );
     set_next_window();
 
     epoch_packet_delays_.clear();
     last_epoch_time = timestamp_ms();
-  } 
-  
+  }
+
   if ( debug_ ) {
     cerr << "At time " << time
 	 << " window size is " << the_window_size << endl;
   }
 
-  // Keep the window from coming back all the way to 1. 
+  // Keep the window from coming back all the way to 1.
   the_window_size = fmax(MIN_WIN_SIZE, the_window_size);
   return (int) the_window_size;
 }
@@ -173,7 +228,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 {
 
   seqno2winsize_[sequence_number] = the_window_size;
-  
+
   if ( after_timeout ) {
 
     // Enter loss recovery mode if we had a timeout.
@@ -211,7 +266,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   }
 
   last_ack_no = sequence_number_acked;
-  
+
   // Add current delay to delay list
   int observed_delay = timestamp_ack_received - send_timestamp_acked;
   min_delay_ = min(min_delay_, observed_delay);
@@ -225,13 +280,13 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
       delay_profile_[packet_window] = observed_delay;
     } else {
       // Update EWMA delay estimate for this window.
-      delay_profile_[packet_window] = 
-          delay_profile_[packet_window] * EST_DELAY_ALPHA + 
-            (1 - EST_DELAY_ALPHA) * observed_delay; 
+      delay_profile_[packet_window] =
+          delay_profile_[packet_window] * EST_DELAY_ALPHA +
+            (1 - EST_DELAY_ALPHA) * observed_delay;
     }
 
   } else {
-      
+
     // In loss recovery we update the window size by one packet
     // every RTT.
     the_window_size += 1 / the_window_size;
