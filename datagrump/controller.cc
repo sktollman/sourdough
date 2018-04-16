@@ -17,11 +17,11 @@ using namespace std;
 #define EST_DELAY_ALPHA 0.3 // alpha for EWMA
 
 /* Additional parameters */
-#define SS_THRESH     10  // multiple of min delay to use as the slow start threshold
+#define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
 #define D_MAX_WIN_INC 0.5   // max window size increase per epoch
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
-#define MIN_WIN_SIZE  3   // in packets
+#define MIN_WIN_SIZE  4   // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
 /* Default constructor */
@@ -57,7 +57,7 @@ void Controller::set_next_delay( uint64_t prev_epoch_max )
 
 /* Set the window size for the next epoch based on est_delay_
    and the delay profile. */
-void Controller::set_next_window()
+void Controller::set_next_window( uint64_t curr_epoch )
 {
 
   int target_delay = est_delay_;
@@ -69,18 +69,20 @@ void Controller::set_next_window()
   //
   // NOTE: Verus interpolates the delay profile using an external library. 
   //       this is a heuristic.
-  double map_delay_prev = 40;
-  for ( auto elem : delay_profile_ )
-  {
-    // If the next element differs from the previous one a lot,
-    // smooth out the difference.
-    if ( fabs(elem.second - map_delay_prev) > SMOOTH_FACTOR ) {
-      if ( elem.second > map_delay_prev )
-        delay_profile_[elem.first] = map_delay_prev + SMOOTH_FACTOR;
-      else
-        delay_profile_[elem.first] = map_delay_prev - SMOOTH_FACTOR;
+  if ( 1 || curr_epoch % ( 1000 / EPSILON ) == 0) {
+    double map_delay_prev = 40;
+    for ( auto elem : delay_profile_ )
+    {
+      // If the next element differs from the previous one a lot,
+      // smooth out the difference.
+      if ( fabs(elem.second - map_delay_prev) > SMOOTH_FACTOR ) {
+        if ( elem.second > map_delay_prev )
+          delay_profile_[elem.first] = map_delay_prev + SMOOTH_FACTOR;
+        else
+          delay_profile_[elem.first] = map_delay_prev - SMOOTH_FACTOR;
+      }
+      map_delay_prev = elem.second;
     }
-    map_delay_prev = elem.second;
   }
 
   // Choose the window size that corresponds to the closest
@@ -101,7 +103,6 @@ void Controller::set_next_window()
         window = the_window_size + D_MAX_WIN_INC;
   } else {
     if ( fabs(window - the_window_size) > D_MAX_WIN_DEC ) {
-        cerr << fabs(window - the_window_size) << endl;
         window = the_window_size - D_MAX_WIN_DEC;
     }
   }
@@ -118,6 +119,7 @@ void Controller::set_next_window()
 unsigned int Controller::window_size()
 {
   static uint64_t last_epoch_time = 0;
+  static uint64_t epoch_no = 0;
   uint64_t time = timestamp_ms();
 
   // If it's time to change epochs...
@@ -130,9 +132,6 @@ unsigned int Controller::window_size()
     uint64_t max_delay = 0;
     for ( auto it=epoch_packet_delays_.begin(); 
           it != epoch_packet_delays_.end(); it++ ) {
-      if ( debug_ ) {
-        cerr << ' ' << *it << endl;
-      }
       if ( *it > max_delay )
         max_delay = *it;
     }
@@ -149,10 +148,11 @@ unsigned int Controller::window_size()
     
     // Update the next delay estimate and thus the next window.
     set_next_delay( prev_epoch_max );
-    set_next_window();
+    set_next_window( epoch_no );
 
     epoch_packet_delays_.clear();
     last_epoch_time = timestamp_ms();
+    epoch_no++;
   } 
   
   if ( debug_ ) {

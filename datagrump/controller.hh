@@ -47,7 +47,7 @@ private:
   void set_next_delay( uint64_t prev_epoch_max );
 
   /* Sets the window for the next epoch */
-  void set_next_window();
+  void set_next_window( uint64_t curr_epoch );
 
 public:
   /* Public interface for the congestion controller */
