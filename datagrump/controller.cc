@@ -219,8 +219,8 @@ unsigned int Controller::window_size()
 */
     // Put a cap on number that can be safely sent.
     if (epoch_sent_ >= 10000 || curr_delay_obs_ > 80) {
-      cerr << "LOW" << endl;
-      return MIN_WIN_SIZE;
+      //cerr << "LOW" << endl;
+      return (int) the_window_size; //MIN_WIN_SIZE;
     } else {
       return (int) the_window_size;    
     }
@@ -249,6 +249,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     the_window_size = the_window_size * MULT_DECREASE;
     the_window_size = fmax(1, the_window_size);
     est_delay_ = min_delay_;
+    cerr << "TIMEOUT" << endl;
   }
 
   if ( debug_ ) {
@@ -285,7 +286,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   // Add current delay to delay list
   int observed_delay = timestamp_ack_received - send_timestamp_acked;
   curr_delay_obs_ = observed_delay;
-  cerr << "Obs delay: " << observed_delay << endl;
+  //cerr << "Obs delay: " << observed_delay << endl;
   min_delay_ = min(min_delay_, observed_delay);
 
   epoch_packet_delays_.push_back(observed_delay);
@@ -344,5 +345,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 1000; /* timeout of one second */
+  return 200; /* timeout of one second */
 }
