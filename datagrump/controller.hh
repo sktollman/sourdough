@@ -82,6 +82,9 @@ public:
   /* How long to wait (in milliseconds) if there are no acks
      before sending one more datagram */
   unsigned int timeout_ms();
+
+  /* A simple heuristic to smooth outliers in the delay profile */
+  void smooth_delay_profile();
 };
 
 #endif

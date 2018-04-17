@@ -58,6 +58,38 @@ void Controller::set_next_delay( uint64_t prev_epoch_max )
   est_delay_ = max(est_delay_, min_delay_);
 }
 
+void Controller::smooth_delay_profile()
+{
+  // Heuristically smooth out the delay profile, because there
+  // are many outliers.
+  //
+  // NOTE: Verus interpolates the delay profile using an external library.
+  //       this is a heuristic.
+  int min_index = -1;
+  int max_index = -1;
+  std::map<int, double> unsmoothed_delay_profile;
+  for ( auto elem : delay_profile_ ) {
+    unsmoothed_delay_profile[elem.first] = elem.second;
+    if (min_index == -1 || elem.first < min_index) min_index = elem.first;
+    if (elem.first > max_index) max_index = elem.first;
+  }
+
+  if (delay_profile_[min_index] - min_delay_ > SMOOTH_FACTOR)
+    delay_profile_[min_index] = min_delay_ + SMOOTH_FACTOR;
+  for (int i = min_index + 1; i <= max_index; i++) {
+    double prev_delay = unsmoothed_delay_profile[i-1];
+    double curr_delay = unsmoothed_delay_profile[i];
+
+    // If the next element differs from the previous one a lot,
+    // smooth out the difference.
+    if (prev_delay - curr_delay > SMOOTH_FACTOR) {
+      delay_profile_[i] = prev_delay - SMOOTH_FACTOR;
+    } else if (curr_delay - prev_delay > SMOOTH_FACTOR) {
+      delay_profile_[i] = prev_delay + SMOOTH_FACTOR;
+    }
+  }
+}
+
 /* Set the window size for the next epoch based on est_delay_
    and the delay profile. */
 void Controller::set_next_window()
@@ -67,25 +99,7 @@ void Controller::set_next_window()
   double window = MIN_WIN_SIZE;
   double min_diff = 10000;
 
-  // Heuristically smooth out the delay profile, because there
-  // are many outliers.
-  //
-  // NOTE: Verus interpolates the delay profile using an external library.
-  //       this is a heuristic.
-  double map_delay_prev = min_delay_;
-  for ( auto elem : delay_profile_ )
-  {
-    // If the next element differs from the previous one a lot,
-    // smooth out the difference.
-    if ( fabs(elem.second - map_delay_prev) > SMOOTH_FACTOR ) {
-      if ( elem.second > map_delay_prev )
-        delay_profile_[elem.first] = map_delay_prev + SMOOTH_FACTOR;
-      else
-        delay_profile_[elem.first] = map_delay_prev - SMOOTH_FACTOR;
-    }
-    map_delay_prev = elem.second;
-  }
-
+  smooth_delay_profile();
 
   // Choose the window size that corresponds to the closest
   // delay to our target delay.
