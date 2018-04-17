@@ -17,6 +17,10 @@ private:
 
   /* List of packet delays for the current epoch */
   std::list<uint64_t> epoch_packet_delays_;
+  std::list<double> delivery_rates_; // in packets / ms
+  std::list<double> rtts_;
+  int epoch_acks_;
+
 
   /* Max delay of current epoch - max delay of previous epoch, in ms */
   int epoch_max_delay_delta_;
@@ -38,6 +42,8 @@ private:
      value, then it finds the corresponding window size from the delay
      profile and sets it for the next epoch. */
   int est_delay_;
+  double epoch_allowed_;
+  int epoch_sent_;
 
   /* State variables */
   bool in_slow_start_;
@@ -53,6 +59,7 @@ private:
 
   /* Sets the window for the next epoch */
   void set_next_window();
+  void set_next_window_bdp( double bdp );
 
   /* Enters loss recovery state after a delay, timeout, or loss. */
   void enter_loss_recovery();

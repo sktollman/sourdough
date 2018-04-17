@@ -9,21 +9,21 @@
 using namespace std;
 
 /* Core Verus parameters */
-#define EPSILON         5   // ms, epoch duration
-#define DELTA_1         1   // ms
-#define DELTA_2         2   // ms
-#define R               1.5   // delay-throughput tradeoff
-#define MAX_DELAY_ALPHA 0.6 // alpha for EWMA
-#define EST_DELAY_ALPHA 0.6 // alpha for EWMA
+#define EPSILON         ^0   // ms, epoch duration
+#define DELTA_1         ^1   // ms
+#define DELTA_2         ^2   // ms
+#define R               ^3   // delay-throughput tradeoff
+#define MAX_DELAY_ALPHA ^4 // alpha for EWMA
+#define EST_DELAY_ALPHA ^5 // alpha for EWMA
 
 /* Additional parameters */
-#define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 1   // max window size increase per epoch
-#define D_MAX_WIN_DEC 5  // max window size decrease per epoch
-#define SMOOTH_FACTOR 10  // for smoothing the delay profile
-#define MIN_WIN_SIZE  3   // in packets
-#define MAX_WIN_SIZE  1000 // in packets
-#define MULT_DECREASE 0.5 // For the MD in AIMD
+#define SS_THRESH     ^6  // multiple of min delay to use as the slow start threshold
+#define D_MAX_WIN_INC ^7   // max window size increase per epoch
+#define D_MAX_WIN_DEC ^8  // max window size decrease per epoch
+#define SMOOTH_FACTOR ^8  // for smoothing the delay profile
+#define MIN_WIN_SIZE  ^9   // in packets
+#define MAX_WIN_SIZE  ^a // in packets
+#define MULT_DECREASE ^b // For the MD in AIMD
 
 /* Default constructor */
 Controller::Controller( const bool debug )
