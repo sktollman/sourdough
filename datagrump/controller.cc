@@ -18,12 +18,16 @@ using namespace std;
 
 /* Additional parameters */
 #define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 0.5   // max window size increase per epoch
+#define D_MAX_WIN_INC .5   // max window size increase per epoch
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
-#define MIN_WIN_SIZE  3   // in packets
+#define MIN_WIN_SIZE  2   // in packets
 #define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
+
+#define TIMEOUT_MULTIPLER       3 // Times est_delay_ before we consider timeout.
+#define DELAY_TIMEOUT_MULTIPLER 5 // Times est_delay_ before we consider loss from
+                                  // observed delay. 
 
 /* BBR parameters */
 #define RTT_WIN       100 // Number of elements in RTT window
@@ -180,7 +184,7 @@ unsigned int Controller::window_size()
     //cerr << "Allowed: " << epoch_allowed_ << ", Sent: " << epoch_sent_ << endl;
     set_next_delay( prev_epoch_max );
     set_next_window( epoch_no );
-    set_next_window_2( prev_epoch_max );
+    //set_next_window_2( prev_epoch_max );
 
     epoch_packet_delays_.clear();
     last_epoch_time = timestamp_ms();
@@ -205,7 +209,10 @@ unsigned int Controller::window_size()
 	 << " window size is " << the_window_size << endl;
   }
 
-  assert(the_window_size <= MAX_WIN_SIZE);
+  if ( (int) the_window_size > MAX_WIN_SIZE) {
+    cerr << the_window_size << endl;
+    assert(the_window_size <= MAX_WIN_SIZE);
+  }
 
   if (!in_loss_recovery_ && !in_slow_start_) {
 
@@ -288,7 +295,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     cerr << "TIMEOUT acks" << endl;
   }
 
-  if (!in_loss_recovery_ && observed_delay > 3 * est_delay_) {
+  if (!in_loss_recovery_ && observed_delay > DELAY_TIMEOUT_MULTIPLER * est_delay_) {
     // Enter loss recovery mode if we missed an ack
     enter_loss_recovery();
     cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
@@ -361,5 +368,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 3 * est_delay_;
+  return TIMEOUT_MULTIPLER * est_delay_;
 }
