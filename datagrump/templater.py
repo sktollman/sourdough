@@ -27,4 +27,4 @@ with open(template_file) as f:
             else:
               f_out.write(c)
 
-print(variables_map)
+print("Command: " + " ".join(sys.argv))

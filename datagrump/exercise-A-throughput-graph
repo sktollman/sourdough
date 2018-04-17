@@ -171,6 +171,7 @@ my @signal_delays = sort { $a <=> $b } values %signal_delay;
 my $pp95s = $signal_delays[ 0.95 * scalar @signal_delays ];
 
 # avg capacity | avg throughput | utilization | 95th percentile per-packet queueing delay | 95th percentile signal delay
+printf STDERR qq{stats:};
 printf STDERR qq{%.2f, }, $average_capacity;
 printf STDERR qq{%.2f, %.1f%%, }, $average_throughput, 100.0 * $average_throughput / $average_capacity;
 printf STDERR qq{%.0f, }, $pp95;

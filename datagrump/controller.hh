@@ -18,7 +18,6 @@ private:
   /* List of packet delays for the current epoch */
   std::list<uint64_t> epoch_packet_delays_;
   std::list<double> delivery_rates_; // in packets / ms
-  std::list<double> rtts_;
   int epoch_acks_;
 
 
@@ -59,7 +58,7 @@ private:
 
   /* Sets the window for the next epoch */
   void set_next_window();
-  void set_next_window_bdp( double bdp );
+  void set_next_window_bdp();
 
   /* Enters loss recovery state after a delay, timeout, or loss. */
   void enter_loss_recovery();
