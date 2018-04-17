@@ -12,18 +12,18 @@ using namespace std;
 #define EPSILON         5   // ms, epoch duration
 #define DELTA_1         1   // ms
 #define DELTA_2         2   // ms
-#define R               2   // delay-throughput tradeoff
-#define MAX_DELAY_ALPHA 0.3 // alpha for EWMA
+#define R               1.5 // delay-throughput tradeoff
+#define MAX_DELAY_ALPHA 0.5 // alpha for EWMA
 #define EST_DELAY_ALPHA 0.3 // alpha for EWMA
 
 /* Additional parameters */
-#define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 0.5   // max window size increase per epoch
-#define D_MAX_WIN_DEC 30  // max window size decrease per epoch
-#define SMOOTH_FACTOR 10  // for smoothing the delay profile
-#define MIN_WIN_SIZE  3   // in packets
+#define SS_THRESH     5   // multiple of min delay to use as the slow start threshold
+#define D_MAX_WIN_INC 1   // max window size increase per epoch
+#define D_MAX_WIN_DEC 0   // max window size decrease per epoch
+#define SMOOTH_FACTOR 20  // for smoothing the delay profile
+#define MIN_WIN_SIZE  5   // in packets
 #define MAX_WIN_SIZE  100 // in packets
-#define MULT_DECREASE 0.5 // For the MD in AIMD
+#define MULT_DECREASE 0.8 // For the MD in AIMD
 
 /* Default constructor */
 Controller::Controller( const bool debug )
