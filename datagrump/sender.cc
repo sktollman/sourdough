@@ -56,21 +56,21 @@ int main( int argc, char *argv[] )
   }
 
   bool debug = false;
-  if ( argc == 6 and string( argv[ 5 ] ) == "debug" ) {
+/*  if ( argc == 6 and string( argv[ 5 ] ) == "debug" ) {
     debug = true;
   } else if ( argc == 5 || argc == 4 ) {
-    /* do nothing */
+     do nothing
   } else {
     cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window] [mode] [debug]" << endl;
     return EXIT_FAILURE;
   }
-
+*/
   /* Set configuration */
   ContestConfig config;
-  config.window_size = atoi(argv[ 3 ]);
+  config.window_size = 5;
   config.additive_win_growth = 1;
   config.multiplicative_win_decrease = 0.1;
-  config.mode = translate_mode( argv[ 4 ]);
+  config.mode = ContestConfig::Mode::SimpleAIMD;;
 
   /* create sender object to handle the accounting */
   /* all the interesting work is done by the Controller */
