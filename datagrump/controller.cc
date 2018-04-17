@@ -294,8 +294,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     }
   }
 
-  if ( in_slow_start_ &&
-    (observed_delay  >= SS_THRESH * min_delay_ || window_size_ >= MAX_WIN_SIZE)) {
+  if ( in_slow_start_ && window_size_ >= MAX_WIN_SIZE) {
     in_slow_start_ = false;
   }
 
