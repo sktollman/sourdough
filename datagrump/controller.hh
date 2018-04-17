@@ -28,12 +28,12 @@ private:
   std::map<int, double> delay_profile_;
 
   /* The current window size */
-  double the_window_size;
+  double window_size_;
 
   /* The minimum delay in ms experienced so far. */
   int min_delay_;
 
-  /* The estimated delay in ms we should have for the current epoch. 
+  /* The estimated delay in ms we should have for the current epoch.
      Verus uses the value of epoch_max_delay_delta_ to tweak this
      value, then it finds the corresponding window size from the delay
      profile and sets it for the next epoch. */
@@ -42,6 +42,11 @@ private:
   /* State variables */
   bool in_slow_start_;
   bool in_loss_recovery_;
+
+  /* the timestamp of the start the current epoch */
+  uint64_t last_epoch_time_;
+  /* the current epoch number */
+  uint64_t epoch_no_;
 
   /* Sets the next est_delay_ given the current value */
   void set_next_delay( uint64_t prev_epoch_max );

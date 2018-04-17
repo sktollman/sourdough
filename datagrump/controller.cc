@@ -20,24 +20,26 @@ using namespace std;
 #define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
 #define D_MAX_WIN_INC 0.5   // max window size increase per epoch
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
-#define SMOOTH_FACTOR 10  // for smoothing the delay profile 
+#define SMOOTH_FACTOR 10  // for smoothing the delay profile
 #define MIN_WIN_SIZE  3   // in packets
 #define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug ), 
-    epoch_max_delay_ ( 100 ),
+  : debug_( debug ),
+    epoch_max_delay_( 100 ),
     epoch_packet_delays_{},
-    epoch_max_delay_delta_ ( 0 ),
+    epoch_max_delay_delta_( 0 ),
     seqno2winsize_{},
     delay_profile_{},
-    the_window_size ( 1 ),
-    min_delay_ ( 1000 ),
-    est_delay_ ( 50 ),
-    in_slow_start_ ( true ),
-    in_loss_recovery_ ( false )
+    window_size_( 1 ),
+    min_delay_( 1000 ),
+    est_delay_( 50 ),
+    in_slow_start_( true ),
+    in_loss_recovery_( false ),
+    last_epoch_time_( 0 ),
+    epoch_no_( 0 )
 {}
 
 /* Estimates the delay that the network should have next,
@@ -66,9 +68,9 @@ void Controller::set_next_window()
   double min_diff = 10000;
 
   // Heuristically smooth out the delay profile, because there
-  // are many outliers. 
+  // are many outliers.
   //
-  // NOTE: Verus interpolates the delay profile using an external library. 
+  // NOTE: Verus interpolates the delay profile using an external library.
   //       this is a heuristic.
   double map_delay_prev = min_delay_;
   for ( auto elem : delay_profile_ )
@@ -83,10 +85,10 @@ void Controller::set_next_window()
     }
     map_delay_prev = elem.second;
   }
-  
+
 
   // Choose the window size that corresponds to the closest
-  // delay to our target delay. 
+  // delay to our target delay.
   for (auto elem : delay_profile_)
   {
     if ( elem.second - target_delay < min_diff ) {
@@ -95,41 +97,39 @@ void Controller::set_next_window()
     }
   }
 
-  // Make sure that the window size is not changed too abruptly. 
+  // Make sure that the window size is not changed too abruptly.
   // We care more about overshooting the capacity less than undershooting,
   // so D_MAX_WIN_INC < D_MAX_WIN_DEC.
-  if ( window > the_window_size ) {
-    if ( fabs(window - the_window_size) > D_MAX_WIN_INC )
-        window = the_window_size + D_MAX_WIN_INC;
+  if ( window > window_size_ ) {
+    if ( fabs(window - window_size_) > D_MAX_WIN_INC )
+        window = window_size_ + D_MAX_WIN_INC;
   } else {
-    if ( fabs(window - the_window_size) > D_MAX_WIN_DEC ) {
-        window = the_window_size - D_MAX_WIN_DEC;
+    if ( fabs(window - window_size_) > D_MAX_WIN_DEC ) {
+        window = window_size_ - D_MAX_WIN_DEC;
     }
   }
 
-  the_window_size = window;
+  window_size_ = window;
 }
 
 /* Get current window size, in datagrams.
-   
+
    Since this function is called very frequently,
    it serves as the tick function that updates epoch
    information. */
 unsigned int Controller::window_size()
 {
-  static uint64_t last_epoch_time = 0;
-  static uint64_t epoch_no = 0;
   uint64_t time = timestamp_ms();
 
   // If it's time to change epochs...
-  if (time - last_epoch_time > EPSILON && !in_loss_recovery_ && !in_slow_start_) {
+  if (time - last_epoch_time_ > EPSILON && !in_loss_recovery_ && !in_slow_start_) {
 
-    // ... recalculate the max delay, the max delay delta, 
+    // ... recalculate the max delay, the max delay delta,
     // and update delay and thus window size we'd like for the coming
     // epoch.
 
     uint64_t max_delay = 0;
-    for ( auto it=epoch_packet_delays_.begin(); 
+    for ( auto it=epoch_packet_delays_.begin();
           it != epoch_packet_delays_.end(); it++ ) {
       if ( *it > max_delay )
         max_delay = *it;
@@ -139,41 +139,44 @@ unsigned int Controller::window_size()
     if ( max_delay != 0 ) {
 
       // Update our current max delay (EWMA), and store the current delta
-      // between time delays. 
-      epoch_max_delay_ = (uint64_t) (MAX_DELAY_ALPHA * epoch_max_delay_ + 
+      // between time delays.
+      epoch_max_delay_ = (uint64_t) (MAX_DELAY_ALPHA * epoch_max_delay_ +
           (1 - MAX_DELAY_ALPHA) * max_delay);
       epoch_max_delay_delta_ = epoch_max_delay_ - prev_epoch_max;
     }
-    
+
     // Update the next delay estimate and thus the next window.
     set_next_delay( prev_epoch_max );
     set_next_window();
 
     epoch_packet_delays_.clear();
-    last_epoch_time = timestamp_ms();
-    epoch_no++;
-  } 
-  
-  if ( debug_ ) {
-    cerr << "At time " << time
-	 << " window size is " << the_window_size << endl;
+    last_epoch_time_ = timestamp_ms();
+    epoch_no_++;
   }
 
-  assert(the_window_size <= MAX_WIN_SIZE);
+  if ( debug_ ) {
+    cerr << "At time " << time
+	 << " window size is " << window_size_ << endl;
+  }
+
+  assert(window_size_ <= MAX_WIN_SIZE && window_size_ > 0);
 
   if (!in_loss_recovery_ && !in_slow_start_) {
     // We allow the window to get smaller in loss recovery
-    the_window_size = fmax(MIN_WIN_SIZE, the_window_size);
+    window_size_ = fmax(MIN_WIN_SIZE, window_size_);
   }
 
-  return (int) the_window_size;
+  return window_size_;
 }
 
 void Controller::enter_loss_recovery() {
     in_loss_recovery_ = true;
-    the_window_size = (int) the_window_size * MULT_DECREASE;
-    the_window_size = fmax(0, the_window_size);
+    window_size_ = (int) window_size_ * MULT_DECREASE;
+    window_size_ = fmax(0, window_size_);
     est_delay_ = min_delay_;
+    epoch_packet_delays_.clear();
+    last_epoch_time_ = timestamp_ms();
+    epoch_no_ ++;
 }
 
 /* A datagram was sent */
@@ -186,11 +189,11 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 {
 
   seqno2winsize_[sequence_number] = window_size();
-  
+
   if ( !in_loss_recovery_ && after_timeout ) {
     // Enter loss recovery mode if we had a timeout.
     enter_loss_recovery();
-    cerr << "TIMEOUT timeout" << endl;
+    if ( debug_ ) cerr << "TIMEOUT timeout" << endl;
   }
 
   if ( debug_ ) {
@@ -214,13 +217,13 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   if (!in_loss_recovery_ && sequence_number_acked != 0 && sequence_number_acked - last_ack_no != 1) {
     // Enter loss recovery mode if we missed an ack
     enter_loss_recovery();
-    cerr << "TIMEOUT acks" << endl;
+    if ( debug_ ) cerr << "TIMEOUT acks" << endl;
   }
 
   if (!in_loss_recovery_ && observed_delay > 3 * est_delay_) {
     // Enter loss recovery mode if we missed an ack
     enter_loss_recovery();
-    cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
+    if ( debug_ ) cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
   }
 
   last_ack_no = sequence_number_acked;
@@ -235,20 +238,20 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
       delay_profile_[packet_window] = observed_delay;
     } else {
       // Update EWMA delay estimate for this window.
-      delay_profile_[packet_window] = 
-          delay_profile_[packet_window] * EST_DELAY_ALPHA + 
-            (1 - EST_DELAY_ALPHA) * observed_delay; 
+      delay_profile_[packet_window] =
+          delay_profile_[packet_window] * EST_DELAY_ALPHA +
+            (1 - EST_DELAY_ALPHA) * observed_delay;
     }
 
   } else {
-      
+
     // In loss recovery we update the window size by one packet
     // every RTT.
-    double denom = the_window_size;
+    double denom = window_size_;
     if (denom == 0) {
       denom = 1;
     }
-    the_window_size += 1 / denom;
+    window_size_ += 1 / denom;
 
     // If we receive an ack from after we halved the window,
     // loss recovery is done.
@@ -257,13 +260,13 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     }
   }
 
-  if ( in_slow_start_ && 
-    (observed_delay  >= SS_THRESH * min_delay_ || the_window_size >= MAX_WIN_SIZE)) {
+  if ( in_slow_start_ &&
+    (observed_delay  >= SS_THRESH * min_delay_ || window_size_ >= MAX_WIN_SIZE)) {
     in_slow_start_ = false;
   }
 
   if ( in_slow_start_ ) {
-    the_window_size += 1;
+    window_size_ += 1;
   }
 
   if ( debug_ ) {
