@@ -24,6 +24,7 @@ using namespace std;
 #define MIN_WIN_SIZE  3   // in packets
 #define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
+#define SMOOTH_N      2  // the number of neighbors to take into account when smoothing
 
 /* Default constructor */
 Controller::Controller( const bool debug )
@@ -58,6 +59,15 @@ void Controller::set_next_delay( uint64_t prev_epoch_max )
   est_delay_ = max(est_delay_, min_delay_);
 }
 
+double Controller::smooth_point(std::map<int, double> profile, int index, int n)
+{
+  double sum = 0;
+  for (int i = index - n; i <= index + n; i++) {
+    sum += profile[i];
+  }
+  return sum / (2 * n + 1);
+}
+
 void Controller::smooth_delay_profile()
 {
   // Heuristically smooth out the delay profile, because there
@@ -74,6 +84,15 @@ void Controller::smooth_delay_profile()
     if (elem.first > max_index) max_index = elem.first;
   }
 
+  // smooth
+  for (int i = min_index + SMOOTH_N; i <= max_index - SMOOTH_N; i++)
+    delay_profile_[i] = smooth_point(unsmoothed_delay_profile, i, SMOOTH_N);
+  for ( auto elem : delay_profile_ )// update unsmoothed profile
+    unsmoothed_delay_profile[elem.first] = elem.second;
+
+  int smooth_count = 0;
+
+  // get rid of remaining outliers
   if (delay_profile_[min_index] - min_delay_ > SMOOTH_FACTOR)
     delay_profile_[min_index] = min_delay_ + SMOOTH_FACTOR;
   for (int i = min_index + 1; i < max_index; i++) {
@@ -87,6 +106,7 @@ void Controller::smooth_delay_profile()
     double next_diff = fabs(next_delay - curr_delay) - SMOOTH_FACTOR;
     double diff = 0;
     if (prev_diff > 0 && next_diff > 0) {
+      smooth_count ++;
       if (prev_diff < next_diff) { // smooth to the closer point
         diff = prev_delay > curr_delay ? prev_diff : -1 * prev_diff;
       } else {
@@ -95,6 +115,25 @@ void Controller::smooth_delay_profile()
     }
 
     delay_profile_[i] = curr_delay + diff;
+  }
+
+  if (smooth_count >= 3){
+    cout << "VALS: " << endl;
+    for (int i = min_index; i <= max_index; i++) {
+      cout << i << ", ";
+    }
+    cout << endl;
+    cout << "UNSMOOTHED: " << endl;
+    for (int i = min_index; i <= max_index; i++) {
+      cout << unsmoothed_delay_profile[i] << ", ";
+    }
+    cout << endl;
+    cout << "SMOOTHED: " << endl;
+    for (int i = min_index; i <= max_index; i++) {
+      cout << delay_profile_[i] << ", ";
+    }
+    cout << endl;
+    exit(0);
   }
 }
 
@@ -294,8 +333,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     }
   }
 
-  if ( in_slow_start_ &&
-    (observed_delay  >= SS_THRESH * min_delay_ || window_size_ >= MAX_WIN_SIZE)) {
+  if ( in_slow_start_ && window_size_ >= MAX_WIN_SIZE) {
     in_slow_start_ = false;
   }
 

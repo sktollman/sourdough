@@ -85,6 +85,9 @@ public:
 
   /* A simple heuristic to smooth outliers in the delay profile */
   void smooth_delay_profile();
+
+  /* Smooths a single point */
+  double smooth_point(std::map<int, double> profile, int index, int n);
 };
 
 #endif
