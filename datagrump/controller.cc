@@ -21,7 +21,7 @@ using namespace std;
 #define D_MAX_WIN_INC 0.5   // max window size increase per epoch
 #define D_MAX_WIN_DEC 30  // max window size decrease per epoch
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile 
-#define MIN_WIN_SIZE  4   // in packets
+#define MIN_WIN_SIZE  3   // in packets
 #define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
 
@@ -49,6 +49,7 @@ Controller::Controller( const bool debug )
     curr_delay_obs_(0),
     rtt_prop_ (50),
     btlbw_ (5),
+    timeout_ (200),
     in_slow_start_ ( true ),
     in_loss_recovery_ ( false )
 {}
@@ -99,7 +100,7 @@ void Controller::set_next_window( uint64_t curr_epoch )
   // NOTE: Verus interpolates the delay profile using an external library. 
   //       this is a heuristic.
   if ( 1 || curr_epoch % ( 1000 / EPSILON ) == 0) {
-    double map_delay_prev = 40;
+    double map_delay_prev = min_delay_;
     for ( auto elem : delay_profile_ )
     {
       // If the next element differs from the previous one a lot,
@@ -204,11 +205,14 @@ unsigned int Controller::window_size()
 	 << " window size is " << the_window_size << endl;
   }
 
-
-  // Keep the window from coming back all the way to 1. 
-  the_window_size = fmax(MIN_WIN_SIZE, the_window_size);
+  assert(the_window_size <= MAX_WIN_SIZE);
 
   if (!in_loss_recovery_ && !in_slow_start_) {
+
+    // Keep the window from coming back all the way to 1. 
+    // if we are not in loss recovery.
+    the_window_size = fmax(MIN_WIN_SIZE, the_window_size);
+
     //double rtt_prop = *min_element(rtts_.begin(), rtts_.end());
     //double bdp = rtt_prop * *max_element(delivery_rates_.begin(), delivery_rates_.end());
 /*    if (inflight_ >= bdp) {
@@ -229,6 +233,13 @@ unsigned int Controller::window_size()
   return (int) the_window_size;
 }
 
+void Controller::enter_loss_recovery() {
+    in_loss_recovery_ = true;
+    the_window_size = (int) the_window_size * MULT_DECREASE;
+    the_window_size = fmax(0, the_window_size);
+    est_delay_ = min_delay_;
+}
+
 /* A datagram was sent */
 void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    /* of the sent datagram */
@@ -242,14 +253,11 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
   inflight_++;
   epoch_sent_++;
   
-  if ( after_timeout ) {
+  if ( !in_loss_recovery_ && after_timeout ) {
 
     // Enter loss recovery mode if we had a timeout.
-    in_loss_recovery_ = true;
-    the_window_size = the_window_size * MULT_DECREASE;
-    the_window_size = fmax(1, the_window_size);
-    est_delay_ = min_delay_;
-    cerr << "TIMEOUT" << endl;
+    enter_loss_recovery();
+    cerr << "TIMEOUT timeout" << endl;
   }
 
   if ( debug_ ) {
@@ -271,20 +279,24 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   static uint64_t last_ack_no = 0;
   epoch_throughput_++;
   inflight_--;
+  int observed_delay = timestamp_ack_received - send_timestamp_acked;
 
-  if ( sequence_number_acked != 0 && sequence_number_acked - last_ack_no != 1) {
+  if (!in_loss_recovery_ && sequence_number_acked != 0 && sequence_number_acked - last_ack_no != 1) {
 
     // Enter loss recovery mode if we missed an ack
-    in_loss_recovery_ = true;
-    the_window_size = the_window_size * MULT_DECREASE;
-    the_window_size = fmax(1, the_window_size);
-    est_delay_ = min_delay_;
+    enter_loss_recovery();
+    cerr << "TIMEOUT acks" << endl;
+  }
+
+  if (!in_loss_recovery_ && observed_delay > 3 * est_delay_) {
+    // Enter loss recovery mode if we missed an ack
+    enter_loss_recovery();
+    cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
   }
 
   last_ack_no = sequence_number_acked;
   
   // Add current delay to delay list
-  int observed_delay = timestamp_ack_received - send_timestamp_acked;
   curr_delay_obs_ = observed_delay;
   //cerr << "Obs delay: " << observed_delay << endl;
   min_delay_ = min(min_delay_, observed_delay);
@@ -314,7 +326,11 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
       
     // In loss recovery we update the window size by one packet
     // every RTT.
-    the_window_size += 1 / the_window_size;
+    double denom = the_window_size;
+    if (denom == 0) {
+      denom = 1;
+    }
+    the_window_size += 1 / denom;
 
     // If we receive an ack from after we halved the window,
     // loss recovery is done.
@@ -345,5 +361,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 200; /* timeout of one second */
+  return 3 * est_delay_;
 }

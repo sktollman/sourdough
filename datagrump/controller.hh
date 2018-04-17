@@ -51,6 +51,8 @@ private:
   double rtt_prop_;
   double btlbw_;
 
+  int timeout_;
+
   /* State variables */
   bool in_slow_start_;
   bool in_loss_recovery_;
@@ -61,6 +63,7 @@ private:
   /* Sets the window for the next epoch */
   void set_next_window( uint64_t curr_epoch );
   void set_next_window_2( uint64_t prev_epoch_max );
+  void enter_loss_recovery();
 
 public:
   /* Public interface for the congestion controller */
