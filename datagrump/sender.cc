@@ -64,12 +64,12 @@ int main( int argc, char *argv[] )
     cerr << "Usage: " << argv[ 0 ] << " HOST PORT [window] [mode] [debug]" << endl;
     return EXIT_FAILURE;
   }
- 
-  /* Set configuration */ 
+
+  /* Set configuration */
   ContestConfig config;
   config.window_size = atoi(argv[ 3 ]);
   config.additive_win_growth = 1;
-  config.multiplicative_win_decrease = 0.5;
+  config.multiplicative_win_decrease = 0.1;
   config.mode = translate_mode( argv[ 4 ]);
 
   /* create sender object to handle the accounting */

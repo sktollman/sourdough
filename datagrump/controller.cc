@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 
 #include "controller.hh"
 #include "timestamp.hh"
@@ -18,7 +19,7 @@ unsigned int Controller::window_size()
     cerr << "At time " << time
 	 << " window size is " << config_.window_size << endl;
   }
-  
+
   return (int) config_.window_size;
 }
 
@@ -34,7 +35,9 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
     if ( after_timeout ) {
-      config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
+      config_.window_size = (double) (config_.window_size * config_.multiplicative_win_decrease);
+      config_.window_size = fmax(0, config_.window_size);
+      config_.window_size = fmin(500, config_.window_size);
       if ( debug_ ) {
         cerr << " --> Cut window size due to timeout\n" << endl;
       }
@@ -62,18 +65,23 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   if ( config_.mode == ContestConfig::Mode::Vanilla ) {
     /* Default: take no action */
   } else if ( config_.mode == ContestConfig::Mode::SimpleAIMD ) {
-    
+
     /* If we miss one of the consecutive ACKs after the zeroth one, we consider
        it a loss */
     if (sequence_number_acked - last_seq_acked != 1 && sequence_number_acked != 0) {
-      config_.window_size = (int) (config_.window_size * config_.multiplicative_win_decrease);
-      if ( debug_) {
+      config_.window_size = (double) ((int) config_.window_size * config_.multiplicative_win_decrease);
+      config_.window_size = fmax(0, config_.window_size);
+      config_.window_size = fmin(500, config_.window_size);
+      if ( debug_ ) {
         cerr << " --> Cut window due to missed ACK.\n" << endl;
       }
     } else {
-      
+
       /* Update cwnd */
-      config_.window_size += config_.additive_win_growth / config_.window_size;
+      double denom = (int) config_.window_size;
+      if (denom == 0)
+        denom = 1;
+      config_.window_size += config_.additive_win_growth / denom;
     }
 
     last_seq_acked = sequence_number_acked;
@@ -93,5 +101,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 1000; /* timeout of one second */
+  return 30; /* timeout of one second */
 }
