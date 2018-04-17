@@ -83,16 +83,18 @@ void Controller::smooth_delay_profile()
 
     // If the next element differs from the previous one a lot,
     // smooth out the difference.
-    double prev_diff = fabs(prev_delay - curr_delay);
-    double next_diff = fabs(next_delay - curr_delay);
-    double diff;
-    if (prev_diff < next_diff) { // smooth to the closer point
-      diff = prev_delay > curr_delay ? prev_diff : -1 * prev_diff;
-    } else {
-      diff = next_delay > curr_delay ? next_diff : -1 * next_diff;
+    double prev_diff = fabs(prev_delay - curr_delay) - SMOOTH_FACTOR;
+    double next_diff = fabs(next_delay - curr_delay) - SMOOTH_FACTOR;
+    double diff = 0;
+    if (prev_diff > 0 && next_diff > 0) {
+      if (prev_diff < next_diff) { // smooth to the closer point
+        diff = prev_delay > curr_delay ? prev_diff : -1 * prev_diff;
+      } else {
+        diff = next_delay > curr_delay ? next_diff : -1 * next_diff;
+      }
     }
-    if (diff > SMOOTH_FACTOR || -1 * diff > SMOOTH_FACTOR)
-      delay_profile_[i] = curr_delay + diff;
+
+    delay_profile_[i] = curr_delay + diff;
   }
 }
 
@@ -174,16 +176,16 @@ unsigned int Controller::window_size()
     epoch_no_++;
   }
 
-  if ( debug_ ) {
-    cerr << "At time " << time
-	 << " window size is " << window_size_ << endl;
-  }
-
-  assert(window_size_ <= MAX_WIN_SIZE && window_size_ > 0);
+  window_size_ = fmin(MAX_WIN_SIZE, window_size_);
 
   if (!in_loss_recovery_ && !in_slow_start_) {
     // We allow the window to get smaller in loss recovery
     window_size_ = fmax(MIN_WIN_SIZE, window_size_);
+  }
+
+  if ( debug_ ) {
+    cerr << "At time " << time
+   << " window size is " << window_size_ << endl;
   }
 
   return window_size_;
