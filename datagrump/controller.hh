@@ -17,9 +17,13 @@ private:
 
   /* List of packet delays for the current epoch */
   std::list<uint64_t> epoch_packet_delays_;
-  std::list<double> delivery_rates_; // in packets / ms
-  int epoch_acks_;
 
+  /* Running window of delivery rates in packets / ms, estimated
+     from the number of acks received in an epoch */
+  std::list<double> delivery_rates_;
+
+  /* The number of acks received in the current epoch */
+  int epoch_acks_;
 
   /* Max delay of current epoch - max delay of previous epoch, in ms */
   int epoch_max_delay_delta_;
@@ -41,8 +45,9 @@ private:
      value, then it finds the corresponding window size from the delay
      profile and sets it for the next epoch. */
   int est_delay_;
+
+  /* unused */
   double epoch_allowed_;
-  int epoch_sent_;
 
   /* State variables */
   bool in_slow_start_;
@@ -56,7 +61,8 @@ private:
   /* Sets the next est_delay_ given the current value */
   void set_next_delay( uint64_t prev_epoch_max );
 
-  /* Sets the window for the next epoch */
+  /* Sets the window for the next epoch, verus-style, and BBR-style using
+     an estimated bandwidth-delay product. */
   void set_next_window();
   void set_next_window_bdp();
 

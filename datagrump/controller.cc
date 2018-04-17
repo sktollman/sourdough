@@ -9,21 +9,28 @@
 using namespace std;
 
 /* Core Verus parameters */
-#define EPSILON         5   // ms, epoch duration
+#define EPSILON         10  // ms, epoch duration
 #define DELTA_1         1   // ms
 #define DELTA_2         2   // ms
-#define R               1.5   // delay-throughput tradeoff
-#define MAX_DELAY_ALPHA 0.6 // alpha for EWMA
-#define EST_DELAY_ALPHA 0.6 // alpha for EWMA
+#define R               2.5 // delay-throughput tradeoff
+#define MAX_DELAY_ALPHA 0.3 // alpha for EWMA
+#define EST_DELAY_ALPHA 0.7 // alpha for EWMA
 
 /* Additional parameters */
-#define SS_THRESH     4  // multiple of min delay to use as the slow start threshold
-#define D_MAX_WIN_INC 1   // max window size increase per epoch
-#define D_MAX_WIN_DEC 5  // max window size decrease per epoch
+#define SS_THRESH     5  // multiple of min delay to use as the slow start threshold
+#define D_MAX_WIN_INC 0   // max window size increase per epoch
+#define D_MAX_WIN_DEC 10 // max window size decrease per epoch
+#define D_MAX_WIN_INC_BDP 1   // max window size increase per epoch for BDP estimator
+#define D_MAX_WIN_DEC_BDP 5  // max window size decrease per epoch for BDP estimator
 #define SMOOTH_FACTOR 10  // for smoothing the delay profile
 #define MIN_WIN_SIZE  3   // in packets
-#define MAX_WIN_SIZE  1000 // in packets
+#define MAX_WIN_SIZE  100 // in packets
 #define MULT_DECREASE 0.5 // For the MD in AIMD
+
+/* Added for BBR-style window updates. */
+#define TIMEOUT_MULT  2          // Mult of est_delay for a timeout
+#define DELAY_TIMEOUT_MULT 4     // Same as above but for observed_delay
+#define DELIVERY_RATES_CACHE_SZ 100 // How many delivery rate values to keep
 
 /* Default constructor */
 Controller::Controller( const bool debug )
@@ -31,7 +38,6 @@ Controller::Controller( const bool debug )
     epoch_max_delay_( 100 ),
     epoch_packet_delays_{},
     delivery_rates_{},
-    rtts_{},
     epoch_acks_(0),
     epoch_max_delay_delta_( 0 ),
     seqno2winsize_{},
@@ -40,7 +46,6 @@ Controller::Controller( const bool debug )
     min_delay_( 1000 ),
     est_delay_( 50 ),
     epoch_allowed_(4),
-    epoch_sent_(0),
     in_slow_start_( true ),
     in_loss_recovery_( false ),
     last_epoch_time_( 0 ),
@@ -118,24 +123,21 @@ void Controller::set_next_window()
   window_size_ = window;
 }
 
-void Controller::set_next_window_bdp( double bdp) {
+void Controller::set_next_window_bdp() {
 
-  double min_rt = *min_element(rtts_.begin(), rtts_.end());
   double max_delivery = *max_element(delivery_rates_.begin(), delivery_rates_.end());
-  cerr << "  min_rt: " << min_rt << ", max rate: " << max_delivery << endl;
-  min_rt = 40; // These traces have the same propagation delay.
-  cerr << "BDP:  " << min_rt * max_delivery << endl;
-  double window = bdp;
+  double min_rt = 40; // These traces have the same propagation delay.
+  double window = min_rt * max_delivery;
 
   // Make sure that the window size is not changed too abruptly.
   // We care more about overshooting the capacity less than undershooting,
   // so D_MAX_WIN_INC < D_MAX_WIN_DEC.
   if ( window > window_size_ ) {
-    if ( fabs(window - window_size_) > D_MAX_WIN_INC )
-        window = window_size_ + 2 * D_MAX_WIN_INC;
+    if ( fabs(window - window_size_) > D_MAX_WIN_INC_BDP )
+        window = window_size_ + D_MAX_WIN_INC_BDP;
   } else {
-    if ( fabs(window - window_size_) > D_MAX_WIN_DEC ) {
-        window = window_size_ - D_MAX_WIN_DEC;
+    if ( fabs(window - window_size_) > D_MAX_WIN_DEC_BDP ) {
+        window = window_size_ - D_MAX_WIN_DEC_BDP;
     }
   }
 
@@ -180,27 +182,22 @@ unsigned int Controller::window_size()
     set_next_window();
 
     delivery_rates_.push_back( (double) epoch_acks_ / EPSILON);
-    if (delivery_rates_.size() > 50) {
+    if (delivery_rates_.size() > DELIVERY_RATES_CACHE_SZ) {
       delivery_rates_.pop_front();
     }
 
     epoch_packet_delays_.clear();
     last_epoch_time_ = timestamp_ms();
     epoch_no_++;
-    epoch_sent_ = 0;
     epoch_acks_ = 0;
 
-    double min_rt = *min_element(rtts_.begin(), rtts_.end());
-    double max_delivery = *max_element(delivery_rates_.begin(), delivery_rates_.end());
-    set_next_window_bdp (min_rt * max_delivery);
+    set_next_window_bdp ();
   }
 
-  if ( 0 ) {
+  if ( debug_ ) {
     cerr << "At time " << time
-	 << " window size is " << window_size_ << endl;
+   << " window size is " << window_size_ << endl;
   }
-
-  assert(window_size_ <= MAX_WIN_SIZE && window_size_ > 0);
 
   if (!in_loss_recovery_ && !in_slow_start_) {
     // We allow the window to get smaller in loss recovery
@@ -222,15 +219,14 @@ void Controller::enter_loss_recovery() {
 
 /* A datagram was sent */
 void Controller::datagram_was_sent( const uint64_t sequence_number,
-				    /* of the sent datagram */
-				    const uint64_t send_timestamp,
+            /* of the sent datagram */
+            const uint64_t send_timestamp,
             /* in milliseconds */
-				    const bool after_timeout
-				    /* datagram was sent because of a timeout */ )
+            const bool after_timeout
+            /* datagram was sent because of a timeout */ )
 {
 
   seqno2winsize_[sequence_number] = window_size();
-  epoch_sent_++;
 
   if ( !in_loss_recovery_ && after_timeout ) {
     // Enter loss recovery mode if we had a timeout.
@@ -240,18 +236,18 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
-	 << " sent datagram " << sequence_number << " (timeout = " << after_timeout << ")\n";
+   << " sent datagram " << sequence_number << " (timeout = " << after_timeout << ")\n";
   }
 }
 
 /* An ack was received */
 void Controller::ack_received( const uint64_t sequence_number_acked,
-			       /* what sequence number was acknowledged */
-			       const uint64_t send_timestamp_acked,
-			       /* when the acknowledged datagram was sent (sender's clock) */
-			       const uint64_t recv_timestamp_acked,
-			       /* when the acknowledged datagram was received (receiver's clock)*/
-			       const uint64_t timestamp_ack_received )
+             /* what sequence number was acknowledged */
+             const uint64_t send_timestamp_acked,
+             /* when the acknowledged datagram was sent (sender's clock) */
+             const uint64_t recv_timestamp_acked,
+             /* when the acknowledged datagram was received (receiver's clock)*/
+             const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
   static uint64_t last_ack_no = 0;
@@ -263,7 +259,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     if ( debug_ ) cerr << "TIMEOUT acks" << endl;
   }
 
-  if (!in_loss_recovery_ && observed_delay > 3 * est_delay_) {
+  if (!in_loss_recovery_ && observed_delay > DELAY_TIMEOUT_MULT * est_delay_) {
     // Enter loss recovery mode if we missed an ack
     enter_loss_recovery();
     if ( debug_ ) cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
@@ -272,11 +268,6 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   last_ack_no = sequence_number_acked;
   min_delay_ = min(min_delay_, observed_delay);
   epoch_packet_delays_.push_back(observed_delay);
-
-  rtts_.push_back(observed_delay);
-  if (rtts_.size() > 500) {
-    rtts_.pop_front();
-  }
 
   unsigned int packet_window = seqno2winsize_[sequence_number_acked];
 
@@ -319,10 +310,10 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ack_received
-	 << " received ack for datagram " << sequence_number_acked
-	 << " (send @ time " << send_timestamp_acked
-	 << ", received @ time " << recv_timestamp_acked << " by receiver's clock)"
-	 << endl;
+   << " received ack for datagram " << sequence_number_acked
+   << " (send @ time " << send_timestamp_acked
+   << ", received @ time " << recv_timestamp_acked << " by receiver's clock)"
+   << endl;
   }
 }
 
@@ -330,5 +321,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 3 * est_delay_;
+  return TIMEOUT_MULT * est_delay_;
 }
