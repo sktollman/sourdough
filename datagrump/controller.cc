@@ -76,17 +76,23 @@ void Controller::smooth_delay_profile()
 
   if (delay_profile_[min_index] - min_delay_ > SMOOTH_FACTOR)
     delay_profile_[min_index] = min_delay_ + SMOOTH_FACTOR;
-  for (int i = min_index + 1; i <= max_index; i++) {
+  for (int i = min_index + 1; i < max_index; i++) {
     double prev_delay = unsmoothed_delay_profile[i-1];
     double curr_delay = unsmoothed_delay_profile[i];
+    double next_delay = unsmoothed_delay_profile[i+1];
 
     // If the next element differs from the previous one a lot,
     // smooth out the difference.
-    if (prev_delay - curr_delay > SMOOTH_FACTOR) {
-      delay_profile_[i] = prev_delay - SMOOTH_FACTOR;
-    } else if (curr_delay - prev_delay > SMOOTH_FACTOR) {
-      delay_profile_[i] = prev_delay + SMOOTH_FACTOR;
+    double prev_diff = fabs(prev_delay - curr_delay);
+    double next_diff = fabs(next_delay - curr_delay);
+    double diff;
+    if (prev_diff < next_diff) { // smooth to the closer point
+      diff = prev_delay > curr_delay ? prev_diff : -1 * prev_diff;
+    } else {
+      diff = next_delay > curr_delay ? next_diff : -1 * next_diff;
     }
+    if (diff > SMOOTH_FACTOR || -1 * diff > SMOOTH_FACTOR)
+      delay_profile_[i] = curr_delay + diff;
   }
 }
 
@@ -234,10 +240,22 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     if ( debug_ ) cerr << "TIMEOUT acks" << endl;
   }
 
-  if (!in_loss_recovery_ && observed_delay > 3 * est_delay_) {
-    // Enter loss recovery mode if we missed an ack
-    enter_loss_recovery();
-    if ( debug_ ) cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
+  static char delayed_acks = 0;
+  delayed_acks >>= 1;
+  if (observed_delay >= 2 * est_delay_) {
+    delayed_acks |= (1 << 2);
+    uint onbits = 0;
+    for (int i = 0; i < 3; i++) {
+      if (delayed_acks & (1 << i)) {
+        onbits ++;
+      }
+    }
+    if (onbits >= 2 && !in_loss_recovery_) {
+      enter_loss_recovery();
+      delayed_acks = 0;
+
+      if ( debug_ ) cerr << "TIMEOUT delay: " << sequence_number_acked << endl;
+    }
   }
 
   last_ack_no = sequence_number_acked;
